@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=13">
+  <link rel="stylesheet" href="css/styles.css?v=14">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=13"></script>
+  <script type="module" src="js/app.js?v=14"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -304,7 +304,7 @@
 
           <div x-show="walkway.enabled" x-transition>
             <!-- Walkway Width Slider -->
-            <div class="form-group" style="margin-top: 0.5rem;">
+            <div class="form-group" style="margin-top: 0.25rem;">
               <div class="form-label">
                 <span>Walkway Corridor Width</span>
                 <span class="unit-badge" x-text="Number(walkway.width).toFixed(2) + ' m'"></span>
@@ -382,7 +382,7 @@
           </div>
 
           <!-- Grid Step Selection -->
-          <div class="form-group" style="margin-top: 0.65rem;">
+          <div class="form-group" style="margin-top: 0.3rem;">
             <label class="form-label" for="select-grid-step">Raster Step Resolution</label>
             <select id="select-grid-step" class="select-control" x-model.number="grid.step">
               <template x-for="opt in rasterOptions" :key="opt.value">
