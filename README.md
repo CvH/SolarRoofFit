@@ -1,5 +1,7 @@
 # SolarRoofFit ☀️
 
+> 🚀 **Live App:** [https://cvh.github.io/SolarRoofFit/](https://cvh.github.io/SolarRoofFit/)
+
 **SolarRoofFit** is an interactive, browser-based solar PV flat roof CAD planner and layout optimizer. It calculates, visualizes, and maximizes solar panel arrays on residential and commercial flat roofs.
 
 ## Features
@@ -14,7 +16,8 @@
 
 ## Quick Start
 
-No build step or dependencies required. Simply open `index.html` in any browser, or run:
+- **Online**: Launch directly at **[cvh.github.io/SolarRoofFit](https://cvh.github.io/SolarRoofFit/)** (no install needed).
+- **Local**: Open `index.html` in any browser, or run:
 
 ```bash
 python -m http.server 8080
