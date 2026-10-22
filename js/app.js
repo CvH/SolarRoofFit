@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=22';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=23';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,9 +12,9 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=22';
-import { SvgCanvasManager } from './canvas.js?v=22';
-import { translate } from './i18n.js?v=22';
+} from './layout.js?v=23';
+import { SvgCanvasManager } from './canvas.js?v=23';
+import { translate } from './i18n.js?v=23';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -899,26 +899,26 @@ document.addEventListener('alpine:init', () => {
             canvas.height = Math.max(1200, Math.round(2400 * aspect));
 
             const ctx = canvas.getContext('2d');
-            // Clean dark CAD canvas background
-            ctx.fillStyle = '#070B14';
+            // Clean architectural daylight background
+            ctx.fillStyle = '#EEF2F6';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Draw SVG blueprint
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            // High-end Blueprint Header Info Card
-            ctx.fillStyle = 'rgba(11, 15, 25, 0.88)';
+            // Architectural Studio Header Info Card
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
             ctx.fillRect(35, 35, 860, 95);
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.4)';
+            ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
             ctx.lineWidth = 2;
             ctx.strokeRect(35, 35, 860, 95);
 
-            ctx.fillStyle = '#F8FAFC';
+            ctx.fillStyle = '#0F172A';
             ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
             ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
 
             ctx.font = '18px Inter, -apple-system, sans-serif';
-            ctx.fillStyle = '#94A3B8';
+            ctx.fillStyle = '#475569';
             ctx.fillText(`${this.modules.length} PV ${this.t('metricModules')} | ${this.totalPowerKW} kWp | ${this.t('metricCoverage')}: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
 
             const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;

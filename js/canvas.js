@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid, calculateSmartSnap } from './layout.js?v=17';
+import { snapToGrid, calculateSmartSnap } from './layout.js?v=23';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -381,11 +381,11 @@ export class SvgCanvasManager {
       const text = document.createElementNS(SVG_NS, 'text');
       text.setAttribute('x', (w / 2).toFixed(4));
       text.setAttribute('y', (h / 2).toFixed(4));
-      text.setAttribute('fill', '#94A3B8');
-      text.setAttribute('opacity', '0.85');
+      text.setAttribute('fill', '#FFFFFF');
+      text.setAttribute('opacity', '0.95');
       text.setAttribute('font-family', "'JetBrains Mono', monospace");
       text.setAttribute('font-size', '0.14');
-      text.setAttribute('font-weight', '600');
+      text.setAttribute('font-weight', '700');
       text.setAttribute('text-anchor', 'middle');
       text.setAttribute('dominant-baseline', 'central');
       text.setAttribute('style', 'pointer-events: none;');

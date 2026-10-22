@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=22">
+  <link rel="stylesheet" href="css/styles.css?v=23">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=22"></script>
+  <script type="module" src="js/app.js?v=23"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -551,16 +551,16 @@
         <!-- The Interactive Vector SVG Canvas -->
         <svg id="roof-canvas-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
           <defs>
-            <!-- Solar Cell Dark Blue Gradient -->
+            <!-- Solar Cell Sapphire Blue Gradient -->
             <linearGradient id="pv-cell-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0F2445" />
-              <stop offset="100%" stop-color="#091326" />
+              <stop offset="0%" stop-color="#123060" />
+              <stop offset="100%" stop-color="#0A1C38" />
             </linearGradient>
 
             <!-- Dynamic Grid Pattern based on grid step -->
             <pattern id="raster-grid-pattern" :width="grid.step" :height="grid.step" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="0" :x2="grid.step" y2="0" stroke="rgba(255,255,255,0.06)" stroke-width="0.01" />
-              <line x1="0" y1="0" y2="0" :y2="grid.step" stroke="rgba(255,255,255,0.06)" stroke-width="0.01" />
+              <line x1="0" y1="0" :x2="grid.step" y2="0" stroke="rgba(15,23,42,0.12)" stroke-width="0.01" />
+              <line x1="0" y1="0" y2="0" :y2="grid.step" stroke="rgba(15,23,42,0.12)" stroke-width="0.01" />
             </pattern>
           </defs>
 
