@@ -2,17 +2,18 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS } from './presets.js?v=4';
+import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=9';
 import {
   snapToGrid,
   getRotatedDimensions,
   getModuleBounds,
+  getRoofSetbacks,
   evaluateModuleBoundary,
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=4';
-import { SvgCanvasManager } from './canvas.js?v=4';
+} from './layout.js?v=9';
+import { SvgCanvasManager } from './canvas.js?v=9';
 
 document.addEventListener('alpine:init', () => {
   Alpine.data('roofPlannerApp', () => ({
@@ -20,13 +21,27 @@ document.addEventListener('alpine:init', () => {
     modulePresets: MODULE_PRESETS,
     roofPresets: ROOF_PRESETS,
     rasterOptions: RASTER_OPTIONS,
+    walkwayIntervalOptions: WALKWAY_INTERVAL_OPTIONS,
 
     // Active configurations
     roof: {
-      width: 12.0,      // meters
-      length: 8.0,      // meters
-      setback: 0.5,     // meters safety border
+      width: 12.0,          // meters
+      length: 8.0,          // meters
+      setback: 0.5,         // uniform master setback
+      setbackTop: 0.5,      // individual side setbacks
+      setbackBottom: 0.5,
+      setbackLeft: 0.5,
+      setbackRight: 0.5,
+      setbackLinked: true,  // true = all 4 sides linked, false = independent
       preset: 'res_standard'
+    },
+
+    walkway: {
+      enabled: false,
+      width: 0.80,          // meters (80cm)
+      interval: 2,           // every 2 rows
+      direction: 'horizontal', // 'horizontal' | 'vertical' | 'both'
+      corridors: []
     },
 
     module: {
@@ -106,6 +121,7 @@ document.addEventListener('alpine:init', () => {
           if (parsed.roof) this.roof = { ...this.roof, ...parsed.roof };
           if (parsed.module) this.module = { ...this.module, ...parsed.module };
           if (parsed.grid) this.grid = { ...this.grid, ...parsed.grid };
+          if (parsed.walkway) this.walkway = { ...this.walkway, ...parsed.walkway };
           if (Array.isArray(parsed.modules) && parsed.modules.length > 0) {
             this.modules = parsed.modules;
           } else {
@@ -126,6 +142,9 @@ document.addEventListener('alpine:init', () => {
         if (this.canvasManager) {
           this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
           this.renderCanvasModules();
+          if (this.walkway && this.walkway.corridors) {
+            this.canvasManager.renderWalkways(this.walkway.corridors);
+          }
         }
       });
 
@@ -141,6 +160,7 @@ document.addEventListener('alpine:init', () => {
       this.$watch('roof', () => this.persistState());
       this.$watch('module', () => this.persistState());
       this.$watch('grid', () => this.persistState());
+      this.$watch('walkway', () => this.persistState());
 
       this.saveHistory('Initial State');
     },
@@ -176,6 +196,23 @@ document.addEventListener('alpine:init', () => {
       return getRotatedDimensions(this.module, mod.rotation || 0);
     },
 
+    // --- 4-Sided Setback Computed Getters ---
+    get roofSetbackTop() {
+      return getRoofSetbacks(this.roof).top;
+    },
+
+    get roofSetbackBottom() {
+      return getRoofSetbacks(this.roof).bottom;
+    },
+
+    get roofSetbackLeft() {
+      return getRoofSetbacks(this.roof).left;
+    },
+
+    get roofSetbackRight() {
+      return getRoofSetbacks(this.roof).right;
+    },
+
     // --- Computed Metrics ---
     get totalPowerKW() {
       return ((this.modules.length * this.module.power) / 1000).toFixed(2);
@@ -186,8 +223,9 @@ document.addEventListener('alpine:init', () => {
     },
 
     get usableArea() {
-      const uw = Math.max(0, this.roof.width - 2 * this.roof.setback);
-      const ul = Math.max(0, this.roof.length - 2 * this.roof.setback);
+      const sb = getRoofSetbacks(this.roof);
+      const uw = Math.max(0, this.roof.width - sb.left - sb.right);
+      const ul = Math.max(0, this.roof.length - sb.top - sb.bottom);
       return (uw * ul).toFixed(1);
     },
 
@@ -222,6 +260,46 @@ document.addEventListener('alpine:init', () => {
       return count;
     },
 
+    // --- Setback Controls ---
+    toggleSetbackLinked() {
+      this.roof.setbackLinked = !this.roof.setbackLinked;
+      if (this.roof.setbackLinked) {
+        // Sync individual sides to uniform master setback value
+        this.roof.setbackTop = this.roof.setback;
+        this.roof.setbackBottom = this.roof.setback;
+        this.roof.setbackLeft = this.roof.setback;
+        this.roof.setbackRight = this.roof.setback;
+      }
+      this.refreshValidation();
+      this.saveHistory('Toggle linked setback');
+    },
+
+    onSetbackMasterChange() {
+      if (this.roof.setbackLinked) {
+        this.roof.setbackTop = this.roof.setback;
+        this.roof.setbackBottom = this.roof.setback;
+        this.roof.setbackLeft = this.roof.setback;
+        this.roof.setbackRight = this.roof.setback;
+      }
+      this.refreshValidation();
+    },
+
+    onSetbackSideChange() {
+      this.refreshValidation();
+      this.saveHistory('Adjust side setback');
+    },
+
+    // --- Walkway Controls ---
+    onWalkwayToggle() {
+      this.runAutoFill(this.autoFillMode);
+    },
+
+    onWalkwayConfigChange() {
+      if (this.walkway.enabled) {
+        this.runAutoFill(this.autoFillMode);
+      }
+    },
+
     // --- Presets Handlers ---
     onRoofPresetChange() {
       const preset = this.roofPresets[this.roof.preset];
@@ -229,6 +307,12 @@ document.addEventListener('alpine:init', () => {
         this.roof.width = preset.width;
         this.roof.length = preset.length;
         this.roof.setback = preset.setback;
+        this.roof.setbackTop = preset.setbackTop !== undefined ? preset.setbackTop : preset.setback;
+        this.roof.setbackBottom = preset.setbackBottom !== undefined ? preset.setbackBottom : preset.setback;
+        this.roof.setbackLeft = preset.setbackLeft !== undefined ? preset.setbackLeft : preset.setback;
+        this.roof.setbackRight = preset.setbackRight !== undefined ? preset.setbackRight : preset.setback;
+        this.roof.setbackLinked = preset.setbackLinked !== undefined ? preset.setbackLinked : true;
+
         this.runAutoFill(this.autoFillMode);
         if (this.canvasManager) {
           this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
@@ -260,11 +344,16 @@ document.addEventListener('alpine:init', () => {
     runAutoFill(mode = this.autoFillMode, recordUndo = true) {
       this.autoFillMode = mode;
       const step = this.grid.enabled ? this.grid.step : 0.05;
-      const result = calculateAutoFill(this.roof, this.module, mode, step);
+      const result = calculateAutoFill(this.roof, this.module, mode, step, this.walkway);
 
       this.modules = result.modules;
+      this.walkway.corridors = result.walkways || [];
       this.selectedIds = [];
       this.refreshValidation();
+
+      if (this.canvasManager) {
+        this.canvasManager.renderWalkways(this.walkway.corridors);
+      }
 
       if (recordUndo) {
         this.saveHistory(`Auto-fill (${result.modeUsed})`);
@@ -359,6 +448,10 @@ document.addEventListener('alpine:init', () => {
       if (confirm(`Remove all ${this.modules.length} PV modules from the roof?`)) {
         this.modules = [];
         this.selectedIds = [];
+        this.walkway.corridors = [];
+        if (this.canvasManager) {
+          this.canvasManager.renderWalkways([]);
+        }
         this.refreshValidation();
         this.saveHistory('Clear all modules');
         this.showToast('Cleared all modules');
@@ -414,7 +507,8 @@ document.addEventListener('alpine:init', () => {
       const snapshot = JSON.stringify({
         modules: this.modules,
         roof: this.roof,
-        module: this.module
+        module: this.module,
+        walkway: this.walkway
       });
 
       // Truncate forward history if branching
@@ -434,6 +528,12 @@ document.addEventListener('alpine:init', () => {
         this.modules = state.modules;
         this.roof = state.roof;
         this.module = state.module;
+        if (state.walkway) {
+          this.walkway = state.walkway;
+          if (this.canvasManager) {
+            this.canvasManager.renderWalkways(this.walkway.corridors || []);
+          }
+        }
         this.selectedIds = [];
         this.refreshValidation();
         this.showToast(`Undo: ${this.history[this.historyIndex].name}`);
@@ -447,6 +547,12 @@ document.addEventListener('alpine:init', () => {
         this.modules = state.modules;
         this.roof = state.roof;
         this.module = state.module;
+        if (state.walkway) {
+          this.walkway = state.walkway;
+          if (this.canvasManager) {
+            this.canvasManager.renderWalkways(this.walkway.corridors || []);
+          }
+        }
         this.selectedIds = [];
         this.refreshValidation();
         this.showToast(`Redo: ${this.history[this.historyIndex].name}`);
@@ -516,6 +622,7 @@ document.addEventListener('alpine:init', () => {
         roof: this.roof,
         module: this.module,
         grid: this.grid,
+        walkway: this.walkway,
         modules: this.modules
       };
       try {
@@ -596,7 +703,15 @@ document.addEventListener('alpine:init', () => {
         ['Roof Width', this.roof.width, 'm'],
         ['Roof Length', this.roof.length, 'm'],
         ['Roof Area', this.roofArea, 'm²'],
-        ['Safety Setback Border', this.roof.setback, 'm'],
+        ['Perimeter Setback (Linked)', this.roof.setbackLinked ? 'Yes' : 'No', ''],
+        ['Perimeter Setback (Top)', this.roofSetbackTop, 'm'],
+        ['Perimeter Setback (Bottom)', this.roofSetbackBottom, 'm'],
+        ['Perimeter Setback (Left)', this.roofSetbackLeft, 'm'],
+        ['Perimeter Setback (Right)', this.roofSetbackRight, 'm'],
+        ['Maintenance Walkways Enabled', this.walkway.enabled ? 'Yes' : 'No', ''],
+        ['Walkway Width', this.walkway.enabled ? this.walkway.width : 'N/A', 'm'],
+        ['Walkway Interval', this.walkway.enabled ? `Every ${this.walkway.interval} rows` : 'N/A', ''],
+        ['Walkway Direction', this.walkway.enabled ? this.walkway.direction : 'N/A', ''],
         ['Usable Area', this.usableArea, 'm²'],
         ['Module Width', this.module.width, 'mm'],
         ['Module Height', this.module.height, 'mm'],

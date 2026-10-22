@@ -405,6 +405,139 @@ input:checked + .slider-round:before {
   transform: translateX(16px);
 }
 
+/* Setback Link Toggle & Status */
+.btn-link-toggle {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 0.15rem 0.45rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-link-toggle:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.link-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.link-status.linked {
+  color: var(--brand-blue);
+}
+
+.link-status.unlinked {
+  color: var(--solar-amber);
+}
+
+/* 4-Way Compass Setback Grid */
+.setback-4way-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+  background: rgba(11, 15, 25, 0.5);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.6rem 0.5rem;
+}
+
+.setback-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.setback-field.top-field,
+.setback-field.bottom-field {
+  width: 125px;
+}
+
+.setback-mid-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.4rem;
+}
+
+.setback-field.left-field,
+.setback-field.right-field {
+  flex: 1;
+}
+
+.compass-center-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-blue);
+  opacity: 0.85;
+  padding: 0 0.2rem;
+}
+
+.compass-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: 'Inter', sans-serif;
+}
+
+.compass-dir {
+  font-weight: 500;
+}
+
+/* Segmented Control */
+.segmented-control {
+  display: flex;
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-top: 0.2rem;
+}
+
+.segment-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.35rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  font-family: inherit;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.segment-btn:hover {
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.segment-btn.active {
+  background: var(--brand-blue);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
 /* ==========================================================================
    Center Viewport & Interactive SVG Canvas
    ========================================================================== */
@@ -617,6 +750,34 @@ input:checked + .slider-round:before {
   stroke: rgba(6, 182, 212, 0.4);
   stroke-width: 0.025;
   stroke-dasharray: 0.15 0.1;
+}
+
+/* Walkway Maintenance Corridors on SVG */
+.walkway-group {
+  pointer-events: none;
+}
+
+.walkway-corridor {
+  fill: rgba(6, 182, 212, 0.07);
+  stroke: rgba(6, 182, 212, 0.45);
+  stroke-width: 0.016;
+  stroke-dasharray: 0.1 0.05;
+}
+
+.walkway-centerline {
+  stroke: rgba(6, 182, 212, 0.35);
+  stroke-width: 0.01;
+  stroke-dasharray: 0.12 0.06;
+}
+
+.walkway-annotation {
+  fill: rgba(6, 182, 212, 0.85);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.13px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  letter-spacing: 0.01em;
 }
 
 .grid-line-major {
