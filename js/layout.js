@@ -353,7 +353,17 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     return finalizeCandidate(candPureLandscape);
   }
 
-  // --- "Auto (Best)" Optimal Mode: Explore Pure AND Mixed Orientations ---
+  // If user requested best with same alignment (uniform orientation across all panels)
+  if (orientationMode === 'same' || orientationMode === 'uniform') {
+    const bestPure = candPureLandscape.count >= candPurePortrait.count ? candPureLandscape : candPurePortrait;
+    return finalizeCandidate({
+      ...bestPure,
+      modeUsed: 'same',
+      summary: `${bestPure.count} ${bestPure.modeUsed} (same alignment)`
+    });
+  }
+
+  // --- "Auto (Best)" Optimal / Mixed Mode: Explore Pure AND Mixed Orientations ---
   const candidates = [candPurePortrait, candPureLandscape];
 
   // Strategy 1: Horizontal Guillotine Splits (Top Block + Bottom Block)

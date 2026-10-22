@@ -80,7 +80,9 @@ document.addEventListener('alpine:init', () => {
       snapToPanels: true // Magnetic snap to neighbor panels with clamp gap
     },
 
-    autoFillMode: 'optimal', // 'optimal' | 'portrait' | 'landscape'
+    autoFillMode: 'mixed', // 'mixed' | 'same' | 'portrait' | 'landscape'
+    autoBestStrategy: 'mixed', // 'mixed' | 'same'
+    autoDropdownOpen: false,
 
     // Placed modules array: { id, x, y, rotation, selected }
     modules: [],
@@ -143,17 +145,19 @@ document.addEventListener('alpine:init', () => {
           if (parsed.module) this.module = { ...this.module, ...parsed.module };
           if (parsed.grid) this.grid = { ...this.grid, ...parsed.grid };
           if (parsed.walkway) this.walkway = { ...this.walkway, ...parsed.walkway };
+          if (parsed.autoBestStrategy) this.autoBestStrategy = parsed.autoBestStrategy;
+          if (parsed.autoFillMode) this.autoFillMode = parsed.autoFillMode;
           if (Array.isArray(parsed.modules) && parsed.modules.length > 0) {
             this.modules = parsed.modules;
           } else {
-            this.runAutoFill('optimal', false);
+            this.runAutoFill(this.autoBestStrategy || 'mixed', false);
           }
         } catch (e) {
           console.error('Failed to load saved state:', e);
-          this.runAutoFill('optimal', false);
+          this.runAutoFill(this.autoBestStrategy || 'mixed', false);
         }
       } else {
-        this.runAutoFill('optimal', false);
+        this.runAutoFill(this.autoBestStrategy || 'mixed', false);
       }
 
       this.refreshValidation();
@@ -182,6 +186,7 @@ document.addEventListener('alpine:init', () => {
       this.$watch('module', () => this.persistState());
       this.$watch('grid', () => this.persistState());
       this.$watch('walkway', () => this.persistState());
+      this.$watch('autoBestStrategy', () => this.persistState());
 
       this.saveHistory('Initial State');
     },
@@ -361,9 +366,21 @@ document.addEventListener('alpine:init', () => {
       this.saveHistory('Change roof dimensions');
     },
 
+    selectAutoStrategy(strategy) {
+      this.autoBestStrategy = strategy;
+      this.autoDropdownOpen = false;
+      this.runAutoFill(strategy);
+    },
+
     // --- Module Operations ---
     runAutoFill(mode = this.autoFillMode, recordUndo = true) {
+      if (mode === 'optimal' || !mode) {
+        mode = this.autoBestStrategy || 'mixed';
+      }
       this.autoFillMode = mode;
+      if (mode === 'mixed' || mode === 'same') {
+        this.autoBestStrategy = mode;
+      }
       const step = this.grid.enabled ? this.grid.step : 0.05;
       const result = calculateAutoFill(this.roof, this.module, mode, step, this.walkway);
 
@@ -645,7 +662,9 @@ document.addEventListener('alpine:init', () => {
         module: this.module,
         grid: this.grid,
         walkway: this.walkway,
-        modules: this.modules
+        modules: this.modules,
+        autoBestStrategy: this.autoBestStrategy,
+        autoFillMode: this.autoFillMode
       };
       try {
         localStorage.setItem('pv_roof_planner_state', JSON.stringify(data));
