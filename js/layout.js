@@ -355,3 +355,213 @@ export function findFreeSpawnPosition(existingModules, moduleConfig, roofConfig,
     y: snapToGrid(sb.top, gridStep)
   };
 }
+
+/**
+ * Calculates smart magnetic snapping for a moving module against stationary neighbor modules.
+ * Prioritizes magnetic neighbor edge & clamp gap snapping when within proximity threshold.
+ * Falls back to raster grid snapping if no neighbor is close.
+ *
+ * @param {Object} primaryMod - The module being dragged { id, x, y, rotation }
+ * @param {Object} rawTarget - Raw target coordinates { x, y } in meters
+ * @param {Array} allModules - All modules on the roof
+ * @param {Array} selectedIds - IDs of modules currently moving together
+ * @param {Object} moduleConfig - { width, height, gapX, gapY }
+ * @param {Object} gridConfig - { enabled, step, snapToPanels }
+ * @param {Boolean} bypassSnap - If true (e.g. Alt key held), bypasses all snapping
+ * @returns {Object} { x, y, snappedX: boolean, snappedY: boolean, guides: Array }
+ */
+export function calculateSmartSnap(
+  primaryMod,
+  rawTarget,
+  allModules = [],
+  selectedIds = [],
+  moduleConfig = {},
+  gridConfig = {},
+  bypassSnap = false
+) {
+  if (bypassSnap) {
+    return {
+      x: Number(rawTarget.x.toFixed(4)),
+      y: Number(rawTarget.y.toFixed(4)),
+      snappedX: false,
+      snappedY: false,
+      guides: []
+    };
+  }
+
+  const dims = getRotatedDimensions(moduleConfig, primaryMod ? primaryMod.rotation || 0 : 0);
+  const modW = dims.width;
+  const modH = dims.height;
+
+  const gapX = ((moduleConfig.gapX !== undefined ? moduleConfig.gapX : 20) / 1000); // meters
+  const gapY = ((moduleConfig.gapY !== undefined ? moduleConfig.gapY : 20) / 1000); // meters
+
+  // Filter out any modules that are part of the moving selection
+  const stationary = allModules.filter(m => !selectedIds.includes(m.id));
+
+  const snapThreshold = 0.16; // 16cm magnetic pull distance
+  let bestX = null;
+  let minDiffX = snapThreshold;
+  let bestXGuide = null;
+
+  let bestY = null;
+  let minDiffY = snapThreshold;
+  let bestYGuide = null;
+
+  const snapToPanels = gridConfig && gridConfig.snapToPanels !== false;
+
+  if (snapToPanels && stationary.length > 0) {
+    const curTop = rawTarget.y;
+    const curBottom = rawTarget.y + modH;
+    const curLeft = rawTarget.x;
+    const curRight = rawTarget.x + modW;
+
+    stationary.forEach(neighbor => {
+      const nBounds = getModuleBounds(neighbor, moduleConfig);
+
+      // Check vertical proximity for horizontal alignment candidates
+      const vOverlap = Math.max(0, Math.min(curBottom, nBounds.bottom) - Math.max(curTop, nBounds.y));
+      const vDistance = Math.max(0, Math.max(curTop - nBounds.bottom, nBounds.y - curBottom));
+
+      if (vOverlap > 0 || vDistance <= 0.3) {
+        // X candidates:
+        const xCandidates = [
+          // 1. Right side of neighbor + clamp gap (e.g. 20mm)
+          {
+            x: nBounds.right + gapX,
+            type: 'gap',
+            label: `${(gapX * 1000).toFixed(0)}mm Gap`,
+            guideX: nBounds.right + (gapX / 2),
+            y1: Math.min(curTop, nBounds.y),
+            y2: Math.max(curBottom, nBounds.bottom)
+          },
+          // 2. Left side of neighbor - moving width - clamp gap
+          {
+            x: nBounds.x - modW - gapX,
+            type: 'gap',
+            label: `${(gapX * 1000).toFixed(0)}mm Gap`,
+            guideX: nBounds.x - (gapX / 2),
+            y1: Math.min(curTop, nBounds.y),
+            y2: Math.max(curBottom, nBounds.bottom)
+          },
+          // 3. Flush Align Left edge
+          {
+            x: nBounds.x,
+            type: 'flush',
+            label: 'Flush Left',
+            guideX: nBounds.x,
+            y1: Math.min(curTop, nBounds.y) - 0.15,
+            y2: Math.max(curBottom, nBounds.bottom) + 0.15
+          },
+          // 4. Flush Align Right edge
+          {
+            x: nBounds.right - modW,
+            type: 'flush',
+            label: 'Flush Right',
+            guideX: nBounds.right,
+            y1: Math.min(curTop, nBounds.y) - 0.15,
+            y2: Math.max(curBottom, nBounds.bottom) + 0.15
+          }
+        ];
+
+        xCandidates.forEach(cand => {
+          const diff = Math.abs(rawTarget.x - cand.x);
+          if (diff < minDiffX) {
+            minDiffX = diff;
+            bestX = cand.x;
+            bestXGuide = {
+              axis: 'x',
+              pos: cand.guideX,
+              label: cand.label,
+              type: cand.type,
+              y1: cand.y1,
+              y2: cand.y2
+            };
+          }
+        });
+      }
+
+      // Check horizontal proximity for vertical alignment candidates
+      const hOverlap = Math.max(0, Math.min(curRight, nBounds.right) - Math.max(curLeft, nBounds.x));
+      const hDistance = Math.max(0, Math.max(curLeft - nBounds.right, nBounds.x - curRight));
+
+      if (hOverlap > 0 || hDistance <= 0.3) {
+        // Y candidates:
+        const yCandidates = [
+          // 1. Below neighbor + clamp gap (e.g. 20mm)
+          {
+            y: nBounds.bottom + gapY,
+            type: 'gap',
+            label: `${(gapY * 1000).toFixed(0)}mm Gap`,
+            guideY: nBounds.bottom + (gapY / 2),
+            x1: Math.min(curLeft, nBounds.x),
+            x2: Math.max(curRight, nBounds.right)
+          },
+          // 2. Above neighbor - moving height - clamp gap
+          {
+            y: nBounds.y - modH - gapY,
+            type: 'gap',
+            label: `${(gapY * 1000).toFixed(0)}mm Gap`,
+            guideY: nBounds.y - (gapY / 2),
+            x1: Math.min(curLeft, nBounds.x),
+            x2: Math.max(curRight, nBounds.right)
+          },
+          // 3. Flush Align Top edge
+          {
+            y: nBounds.y,
+            type: 'flush',
+            label: 'Flush Top',
+            guideY: nBounds.y,
+            x1: Math.min(curLeft, nBounds.x) - 0.15,
+            x2: Math.max(curRight, nBounds.right) + 0.15
+          },
+          // 4. Flush Align Bottom edge
+          {
+            y: nBounds.bottom - modH,
+            type: 'flush',
+            label: 'Flush Bottom',
+            guideY: nBounds.bottom,
+            x1: Math.min(curLeft, nBounds.x) - 0.15,
+            x2: Math.max(curRight, nBounds.right) + 0.15
+          }
+        ];
+
+        yCandidates.forEach(cand => {
+          const diff = Math.abs(rawTarget.y - cand.y);
+          if (diff < minDiffY) {
+            minDiffY = diff;
+            bestY = cand.y;
+            bestYGuide = {
+              axis: 'y',
+              pos: cand.guideY,
+              label: cand.label,
+              type: cand.type,
+              x1: cand.x1,
+              x2: cand.x2
+            };
+          }
+        });
+      }
+    });
+  }
+
+  // Fallback to raster grid snapping if not snapped to neighbor
+  const gridStep = gridConfig && gridConfig.step ? gridConfig.step : 0.25;
+  const gridEnabled = !!(gridConfig && gridConfig.enabled);
+
+  const finalX = bestX !== null ? bestX : (gridEnabled ? snapToGrid(rawTarget.x, gridStep) : rawTarget.x);
+  const finalY = bestY !== null ? bestY : (gridEnabled ? snapToGrid(rawTarget.y, gridStep) : rawTarget.y);
+
+  const guides = [];
+  if (bestXGuide) guides.push(bestXGuide);
+  if (bestYGuide) guides.push(bestYGuide);
+
+  return {
+    x: Number(finalX.toFixed(4)),
+    y: Number(finalY.toFixed(4)),
+    snappedX: bestX !== null,
+    snappedY: bestY !== null,
+    guides
+  };
+}
+

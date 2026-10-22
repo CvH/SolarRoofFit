@@ -363,6 +363,40 @@ html, body {
   padding: 0.35rem 0;
 }
 
+.form-label-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.form-sublabel {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+  font-weight: 400;
+}
+
+.form-micro-hint {
+  font-size: 0.72rem;
+  color: #93C5FD;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px dashed rgba(59, 130, 246, 0.25);
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+  margin: 0.35rem 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+}
+
+.form-micro-hint kbd {
+  background: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.68rem;
+  margin: 0 2px;
+}
+
 .switch {
   position: relative;
   display: inline-block;
@@ -778,6 +812,42 @@ input:checked + .slider-round:before {
   text-anchor: middle;
   dominant-baseline: central;
   letter-spacing: 0.01em;
+}
+
+/* CAD Smart Magnetic Snap Alignment Guides */
+.snap-guide-group {
+  pointer-events: none;
+}
+
+.snap-guide-line {
+  stroke: var(--electric-cyan);
+  stroke-width: 0.018;
+  stroke-dasharray: 0.08 0.04;
+  filter: drop-shadow(0 0 0.06 rgba(6, 182, 212, 0.6));
+}
+
+.snap-guide-line.snap-gap-line {
+  stroke: var(--solar-amber);
+  filter: drop-shadow(0 0 0.06 rgba(245, 158, 11, 0.6));
+}
+
+.snap-guide-line.snap-flush-line {
+  stroke: var(--electric-cyan);
+  filter: drop-shadow(0 0 0.06 rgba(6, 182, 212, 0.6));
+}
+
+.snap-guide-text {
+  fill: #FFFFFF;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.135px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #070A12;
+  stroke-width: 0.035;
+  stroke-linejoin: round;
+  letter-spacing: 0.02em;
 }
 
 .grid-line-major {

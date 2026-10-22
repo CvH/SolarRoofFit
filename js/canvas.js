@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid } from './layout.js';
+import { snapToGrid, calculateSmartSnap } from './layout.js?v=11';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -224,23 +224,34 @@ export class SvgCanvasManager {
     }
 
     const appState = this.getAppState();
-    const gridStep = appState.grid.enabled ? appState.grid.step : 0.01;
-
-    // Calculate primary module's target position snapped to grid
     const primaryInit = this.dragState.initialPositions[this.dragState.primaryId];
     if (!primaryInit) return;
 
     const rawTargetX = primaryInit.x + deltaX;
     const rawTargetY = primaryInit.y + deltaY;
 
-    const snappedTargetX = appState.grid.enabled ? snapToGrid(rawTargetX, gridStep) : Number(rawTargetX.toFixed(3));
-    const snappedTargetY = appState.grid.enabled ? snapToGrid(rawTargetY, gridStep) : Number(rawTargetY.toFixed(3));
+    // Find the primary module currently being dragged
+    const primaryMod = (appState.modules || []).find(m => m.id === this.dragState.primaryId);
 
-    const effectiveDeltaX = snappedTargetX - primaryInit.x;
-    const effectiveDeltaY = snappedTargetY - primaryInit.y;
+    // Smart magnetic snap to neighbor edges & clamp gaps, or fallback to raster grid
+    const snapResult = calculateSmartSnap(
+      primaryMod,
+      { x: rawTargetX, y: rawTargetY },
+      appState.modules || [],
+      appState.selectedIds || [this.dragState.primaryId],
+      appState.module || {},
+      appState.grid || {},
+      event.altKey // Hold Alt key to temporarily bypass all snapping
+    );
+
+    const effectiveDeltaX = snapResult.x - primaryInit.x;
+    const effectiveDeltaY = snapResult.y - primaryInit.y;
 
     this.dragState.effectiveDeltaX = effectiveDeltaX;
     this.dragState.effectiveDeltaY = effectiveDeltaY;
+
+    // Render visual snap guide lines
+    this.renderSnapGuides(snapResult.guides);
 
     // Direct DOM transform updates for 60fps buttery smooth dragging
     for (const [id, init] of Object.entries(this.dragState.initialPositions)) {
@@ -266,6 +277,7 @@ export class SvgCanvasManager {
     const initialPositions = this.dragState.initialPositions;
 
     this.dragState = null;
+    this.renderSnapGuides([]);
 
     if (moved && (Math.abs(effectiveDeltaX) > 0.001 || Math.abs(effectiveDeltaY) > 0.001)) {
       const appState = this.getAppState();
@@ -452,6 +464,59 @@ export class SvgCanvasManager {
       g.appendChild(text);
 
       fragment.appendChild(g);
+    });
+
+    layer.appendChild(fragment);
+  }
+
+  /**
+   * Renders CAD magnetic snap alignment guide lines during module dragging
+   */
+  renderSnapGuides(guides = []) {
+    const layer = this.svg.querySelector('#snap-guides-layer');
+    if (!layer) return;
+
+    layer.innerHTML = '';
+    if (!guides || guides.length === 0) return;
+
+    const fragment = document.createDocumentFragment();
+
+    guides.forEach(g => {
+      const group = document.createElementNS(SVG_NS, 'g');
+      group.setAttribute('class', 'snap-guide-group');
+
+      const line = document.createElementNS(SVG_NS, 'line');
+      line.setAttribute('class', `snap-guide-line snap-${g.type}-line`);
+
+      if (g.axis === 'x') {
+        line.setAttribute('x1', g.pos.toFixed(4));
+        line.setAttribute('y1', (g.y1 - 0.25).toFixed(4));
+        line.setAttribute('x2', g.pos.toFixed(4));
+        line.setAttribute('y2', (g.y2 + 0.25).toFixed(4));
+      } else {
+        line.setAttribute('x1', (g.x1 - 0.25).toFixed(4));
+        line.setAttribute('y1', g.pos.toFixed(4));
+        line.setAttribute('x2', (g.x2 + 0.25).toFixed(4));
+        line.setAttribute('y2', g.pos.toFixed(4));
+      }
+      group.appendChild(line);
+
+      // Label indicator text
+      if (g.label) {
+        const text = document.createElementNS(SVG_NS, 'text');
+        text.setAttribute('class', 'snap-guide-text');
+        if (g.axis === 'x') {
+          text.setAttribute('x', g.pos.toFixed(4));
+          text.setAttribute('y', (g.y1 - 0.12).toFixed(4));
+        } else {
+          text.setAttribute('x', (g.x1 - 0.15).toFixed(4));
+          text.setAttribute('y', (g.pos - 0.08).toFixed(4));
+        }
+        text.textContent = g.label;
+        group.appendChild(text);
+      }
+
+      fragment.appendChild(group);
     });
 
     layer.appendChild(fragment);

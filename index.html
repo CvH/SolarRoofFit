@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=10">
+  <link rel="stylesheet" href="css/styles.css?v=11">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=10"></script>
+  <script type="module" src="js/app.js?v=11"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -414,13 +414,33 @@
             </span>
           </div>
 
-          <!-- Magnetic Snap Toggle -->
+          <!-- Magnetic Snap to Neighbor Panels Toggle -->
           <div class="toggle-switch-wrap">
-            <span class="form-label" style="margin-bottom:0;">Snap Modules to Grid</span>
-            <label class="switch">
+            <div class="form-label-wrap">
+              <span class="form-label" style="margin-bottom:0;">Snap to Neighbor Panels</span>
+              <span class="form-sublabel">Magnetic clamp gap & edge alignment</span>
+            </div>
+            <label class="switch" title="Snap to adjacent panels and clamp gap when dragging">
+              <input id="toggle-panel-snap" type="checkbox" x-model="grid.snapToPanels">
+              <span class="slider-round"></span>
+            </label>
+          </div>
+
+          <!-- Magnetic Snap to Grid Toggle -->
+          <div class="toggle-switch-wrap">
+            <div class="form-label-wrap">
+              <span class="form-label" style="margin-bottom:0;">Snap Modules to Grid</span>
+              <span class="form-sublabel">Fallback background raster</span>
+            </div>
+            <label class="switch" title="Snap to metric background grid">
               <input id="toggle-grid-snap" type="checkbox" x-model="grid.enabled">
               <span class="slider-round"></span>
             </label>
+          </div>
+
+          <!-- Micro Hint for Alt key -->
+          <div class="form-micro-hint">
+            <span>💡 Hold <kbd>Alt</kbd> while dragging to freely bypass snapping</span>
           </div>
 
           <!-- Grid Step Selection -->
@@ -512,6 +532,9 @@
           <!-- Walkways Layer (Maintenance Corridors) -->
           <g id="walkways-layer"></g>
 
+          <!-- Magnetic Snap CAD Guides Layer -->
+          <g id="snap-guides-layer"></g>
+
           <!-- Modules Placement Layer (dynamically rendered for high performance and compatibility) -->
           <g id="modules-layer"></g>
         </svg>
@@ -542,6 +565,10 @@
           <div class="hint-chip">
             <span class="kbd-badge">Del</span>
             <span>Delete</span>
+          </div>
+          <div class="hint-chip">
+            <span class="kbd-badge">Alt + Drag</span>
+            <span>Free (No Snap)</span>
           </div>
           <div class="hint-chip">
             <span class="kbd-badge">Shift + Click</span>

@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=9';
+import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=11';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,8 +12,8 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=9';
-import { SvgCanvasManager } from './canvas.js?v=9';
+} from './layout.js?v=11';
+import { SvgCanvasManager } from './canvas.js?v=11';
 
 document.addEventListener('alpine:init', () => {
   Alpine.data('roofPlannerApp', () => ({
@@ -56,7 +56,8 @@ document.addEventListener('alpine:init', () => {
     grid: {
       enabled: true,
       step: 0.25,       // meters
-      showGrid: true
+      showGrid: true,
+      snapToPanels: true // Magnetic snap to neighbor panels with clamp gap
     },
 
     autoFillMode: 'optimal', // 'optimal' | 'portrait' | 'landscape'
