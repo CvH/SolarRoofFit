@@ -376,10 +376,11 @@ document.addEventListener('alpine:init', () => {
         this.canvasManager.renderWalkways(this.walkway.corridors);
       }
 
+      const summaryText = result.summary || result.modeUsed;
       if (recordUndo) {
-        this.saveHistory(`Auto-fill (${result.modeUsed})`);
+        this.saveHistory(`Auto-fill: ${summaryText}`);
       }
-      this.showToast(`Auto-filled ${result.count} modules (${result.modeUsed})`);
+      this.showToast(`Auto-filled ${result.count} modules (${summaryText})`);
     },
 
     addModule() {

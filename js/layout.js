@@ -178,7 +178,7 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
   const usableLength = roofConfig.length - sb.top - sb.bottom;
 
   if (usableWidth <= 0 || usableLength <= 0) {
-    return { modules: [], walkways: [], modeUsed: orientationMode, count: 0 };
+    return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: 'No usable area' };
   }
 
   const gapX = ((moduleConfig.gapX !== undefined ? moduleConfig.gapX : 20) / 1000); // meters
@@ -195,107 +195,336 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
   const hasHWalkways = walkwayEnabled && (walkwayDir === 'horizontal' || walkwayDir === 'both');
   const hasVWalkways = walkwayEnabled && (walkwayDir === 'vertical' || walkwayDir === 'both');
 
-  const calcGrid = (modW, modH, rot) => {
-    const colLayout = computeDimensionLayout(usableWidth, modW, gapX, hasVWalkways, walkwayInterval, walkwayWidth);
-    const rowLayout = computeDimensionLayout(usableLength, modH, gapY, hasHWalkways, walkwayInterval, walkwayWidth);
-    const count = colLayout.count * rowLayout.count;
+  /**
+   * Generates a uniform block of modules in a designated rectangular region.
+   */
+  const generateBlock = (originX, originY, availW, availH, modW, modH, rot, vWalk, hWalk) => {
+    if (availW < modW || availH < modH) {
+      return { count: 0, modules: [], walkways: [], totalSpanX: 0, totalSpanY: 0, cols: 0, rows: 0 };
+    }
+    const colLayout = computeDimensionLayout(availW, modW, gapX, vWalk, walkwayInterval, walkwayWidth);
+    const rowLayout = computeDimensionLayout(availH, modH, gapY, hWalk, walkwayInterval, walkwayWidth);
 
-    return { colLayout, rowLayout, count, modW, modH, rot };
+    const blockMods = [];
+    for (let r = 0; r < rowLayout.count; r++) {
+      for (let c = 0; c < colLayout.count; c++) {
+        blockMods.push({
+          x: originX + colLayout.offsets[c],
+          y: originY + rowLayout.offsets[r],
+          rotation: rot
+        });
+      }
+    }
+
+    const blockWalkways = [];
+    if (hWalk) {
+      rowLayout.walkways.forEach(wk => {
+        blockWalkways.push({
+          x: originX,
+          y: originY + wk.start,
+          width: colLayout.totalSpan,
+          height: wk.width,
+          direction: 'horizontal'
+        });
+      });
+    }
+    if (vWalk) {
+      colLayout.walkways.forEach(wk => {
+        blockWalkways.push({
+          x: originX + wk.start,
+          y: originY,
+          width: wk.width,
+          height: rowLayout.totalSpan,
+          direction: 'vertical'
+        });
+      });
+    }
+
+    return {
+      count: blockMods.length,
+      modules: blockMods,
+      walkways: blockWalkways,
+      totalSpanX: colLayout.totalSpan,
+      totalSpanY: rowLayout.totalSpan,
+      cols: colLayout.count,
+      rows: rowLayout.count,
+      colLayout,
+      rowLayout
+    };
   };
 
-  const portrait = calcGrid(w, h, 0);
-  const landscape = calcGrid(h, w, 90);
+  // Pure Baselines across the entire usable roof
+  const purePort = generateBlock(0, 0, usableWidth, usableLength, w, h, 0, hasVWalkways, hasHWalkways);
+  const candPurePortrait = {
+    type: 'pure',
+    modeUsed: 'portrait',
+    summary: `${purePort.count} portrait`,
+    count: purePort.count,
+    modules: purePort.modules,
+    walkways: purePort.walkways
+  };
 
-  let chosen;
+  const pureLand = generateBlock(0, 0, usableWidth, usableLength, h, w, 90, hasVWalkways, hasHWalkways);
+  const candPureLandscape = {
+    type: 'pure',
+    modeUsed: 'landscape',
+    summary: `${pureLand.count} landscape`,
+    count: pureLand.count,
+    modules: pureLand.modules,
+    walkways: pureLand.walkways
+  };
+
+  /**
+   * Finalizes coordinates, centers the entire layout within safe setbacks, and snaps to grid.
+   */
+  const finalizeCandidate = (winner) => {
+    if (!winner || winner.count <= 0) {
+      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: 'No modules fit' };
+    }
+
+    const mods = winner.modules;
+    let minX = Infinity, maxX = -Infinity;
+    let minY = Infinity, maxY = -Infinity;
+
+    mods.forEach(m => {
+      const isL = m.rotation === 90;
+      const mw = isL ? h : w;
+      const mh = isL ? w : h;
+      if (m.x < minX) minX = m.x;
+      if (m.x + mw > maxX) maxX = m.x + mw;
+      if (m.y < minY) minY = m.y;
+      if (m.y + mh > maxY) maxY = m.y + mh;
+    });
+
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+
+    let startX = sb.left + ((usableWidth - spanX) / 2);
+    let startY = sb.top + ((usableLength - spanY) / 2);
+
+    startX = snapToGrid(startX, gridStep);
+    startY = snapToGrid(startY, gridStep);
+
+    if (startX < sb.left) startX = sb.left;
+    if (startY < sb.top) startY = sb.top;
+    if (startX + spanX > roofConfig.width - sb.right) {
+      startX = Math.max(sb.left, roofConfig.width - sb.right - spanX);
+    }
+    if (startY + spanY > roofConfig.length - sb.bottom) {
+      startY = Math.max(sb.top, roofConfig.length - sb.bottom - spanY);
+    }
+
+    const deltaX = startX - minX;
+    const deltaY = startY - minY;
+
+    let idCounter = 1;
+    const timestamp = Date.now();
+
+    const finalizedModules = mods.map(m => ({
+      id: `pv-${timestamp}-${idCounter++}`,
+      x: Number((m.x + deltaX).toFixed(4)),
+      y: Number((m.y + deltaY).toFixed(4)),
+      rotation: m.rotation,
+      selected: false
+    }));
+
+    const finalizedWalkways = (winner.walkways || []).map(wk => ({
+      x: Number((wk.x + deltaX).toFixed(4)),
+      y: Number((wk.y + deltaY).toFixed(4)),
+      width: Number(wk.width.toFixed(4)),
+      height: Number(wk.height.toFixed(4)),
+      direction: wk.direction
+    }));
+
+    return {
+      modules: finalizedModules,
+      walkways: finalizedWalkways,
+      modeUsed: winner.modeUsed,
+      summary: winner.summary,
+      count: finalizedModules.length
+    };
+  };
+
+  // If user explicitly picked portrait or landscape, return pure candidate
   if (orientationMode === 'portrait') {
-    chosen = portrait;
-  } else if (orientationMode === 'landscape') {
-    chosen = landscape;
-  } else {
-    // Optimal: highest count, or if equal, compare coverage area
-    if (landscape.count > portrait.count) {
-      chosen = landscape;
-    } else if (portrait.count > landscape.count) {
-      chosen = portrait;
-    } else {
-      const portOcc = portrait.colLayout.count * portrait.rowLayout.count * (w * h);
-      const landOcc = landscape.colLayout.count * landscape.rowLayout.count * (w * h);
-      chosen = landOcc >= portOcc ? landscape : portrait;
+    return finalizeCandidate(candPurePortrait);
+  }
+  if (orientationMode === 'landscape') {
+    return finalizeCandidate(candPureLandscape);
+  }
+
+  // --- "Auto (Best)" Optimal Mode: Explore Pure AND Mixed Orientations ---
+  const candidates = [candPurePortrait, candPureLandscape];
+
+  // Strategy 1: Horizontal Guillotine Splits (Top Block + Bottom Block)
+  // Top Portrait (r1 rows) + Bottom Landscape (fill remainder)
+  for (let r1 = 1; r1 < purePort.rows; r1++) {
+    const hTop = purePort.rowLayout.offsets[r1 - 1] + h;
+    const topBlock = generateBlock(0, 0, usableWidth, hTop, w, h, 0, hasVWalkways, hasHWalkways);
+    const remH = usableLength - (hTop + gapY);
+    if (remH >= w) {
+      const bottomBlock = generateBlock(0, hTop + gapY, usableWidth, remH, h, w, 90, hasVWalkways, hasHWalkways);
+      if (bottomBlock.count > 0) {
+        candidates.push({
+          type: 'mixed',
+          modeUsed: 'mixed',
+          summary: `${topBlock.count} portrait + ${bottomBlock.count} landscape (mixed)`,
+          count: topBlock.count + bottomBlock.count,
+          modules: [...topBlock.modules, ...bottomBlock.modules],
+          walkways: [...topBlock.walkways, ...bottomBlock.walkways]
+        });
+      }
     }
   }
 
-  if (chosen.count <= 0) {
-    return { modules: [], walkways: [], modeUsed: chosen.rot === 90 ? 'landscape' : 'portrait', count: 0 };
+  // Top Landscape (r1 rows) + Bottom Portrait (fill remainder)
+  for (let r1 = 1; r1 < pureLand.rows; r1++) {
+    const hTop = pureLand.rowLayout.offsets[r1 - 1] + w;
+    const topBlock = generateBlock(0, 0, usableWidth, hTop, h, w, 90, hasVWalkways, hasHWalkways);
+    const remH = usableLength - (hTop + gapY);
+    if (remH >= h) {
+      const bottomBlock = generateBlock(0, hTop + gapY, usableWidth, remH, w, h, 0, hasVWalkways, hasHWalkways);
+      if (bottomBlock.count > 0) {
+        candidates.push({
+          type: 'mixed',
+          modeUsed: 'mixed',
+          summary: `${topBlock.count} landscape + ${bottomBlock.count} portrait (mixed)`,
+          count: topBlock.count + bottomBlock.count,
+          modules: [...topBlock.modules, ...bottomBlock.modules],
+          walkways: [...topBlock.walkways, ...bottomBlock.walkways]
+        });
+      }
+    }
   }
 
-  // Center array within safe zone
-  let startX = sb.left + ((usableWidth - chosen.colLayout.totalSpan) / 2);
-  let startY = sb.top + ((usableLength - chosen.rowLayout.totalSpan) / 2);
-
-  startX = snapToGrid(startX, gridStep);
-  startY = snapToGrid(startY, gridStep);
-
-  // Ensure within safe setback boundaries
-  if (startX < sb.left) startX = sb.left;
-  if (startY < sb.top) startY = sb.top;
-  if (startX + chosen.colLayout.totalSpan > roofConfig.width - sb.right) {
-    startX = Math.max(sb.left, roofConfig.width - sb.right - chosen.colLayout.totalSpan);
+  // Strategy 2: Vertical Guillotine Splits (Left Block + Right Block)
+  // Left Portrait (c1 cols) + Right Landscape (fill remainder)
+  for (let c1 = 1; c1 < purePort.cols; c1++) {
+    const wLeft = purePort.colLayout.offsets[c1 - 1] + w;
+    const leftBlock = generateBlock(0, 0, wLeft, usableLength, w, h, 0, hasVWalkways, hasHWalkways);
+    const remW = usableWidth - (wLeft + gapX);
+    if (remW >= h) {
+      const rightBlock = generateBlock(wLeft + gapX, 0, remW, usableLength, h, w, 90, hasVWalkways, hasHWalkways);
+      if (rightBlock.count > 0) {
+        candidates.push({
+          type: 'mixed',
+          modeUsed: 'mixed',
+          summary: `${leftBlock.count} portrait + ${rightBlock.count} landscape (mixed)`,
+          count: leftBlock.count + rightBlock.count,
+          modules: [...leftBlock.modules, ...rightBlock.modules],
+          walkways: [...leftBlock.walkways, ...rightBlock.walkways]
+        });
+      }
+    }
   }
-  if (startY + chosen.rowLayout.totalSpan > roofConfig.length - sb.bottom) {
-    startY = Math.max(sb.top, roofConfig.length - sb.bottom - chosen.rowLayout.totalSpan);
+
+  // Left Landscape (c1 cols) + Right Portrait (fill remainder)
+  for (let c1 = 1; c1 < pureLand.cols; c1++) {
+    const wLeft = pureLand.colLayout.offsets[c1 - 1] + h;
+    const leftBlock = generateBlock(0, 0, wLeft, usableLength, h, w, 90, hasVWalkways, hasHWalkways);
+    const remW = usableWidth - (wLeft + gapX);
+    if (remW >= w) {
+      const rightBlock = generateBlock(wLeft + gapX, 0, remW, usableLength, w, h, 0, hasVWalkways, hasHWalkways);
+      if (rightBlock.count > 0) {
+        candidates.push({
+          type: 'mixed',
+          modeUsed: 'mixed',
+          summary: `${leftBlock.count} landscape + ${rightBlock.count} portrait (mixed)`,
+          count: leftBlock.count + rightBlock.count,
+          modules: [...leftBlock.modules, ...rightBlock.modules],
+          walkways: [...leftBlock.walkways, ...rightBlock.walkways]
+        });
+      }
+    }
   }
 
-  const generated = [];
-  let idCounter = 1;
+  // Strategy 3: Corner / L-Shape Residual Packing
+  // Main Landscape + Right Strip Portrait + Bottom Strip Portrait
+  if (pureLand.count > 0) {
+    const remW = usableWidth - (pureLand.totalSpanX + gapX);
+    const remH = usableLength - (pureLand.totalSpanY + gapY);
 
-  for (let r = 0; r < chosen.rowLayout.count; r++) {
-    for (let c = 0; c < chosen.colLayout.count; c++) {
-      const posX = Number((startX + chosen.colLayout.offsets[c]).toFixed(4));
-      const posY = Number((startY + chosen.rowLayout.offsets[r]).toFixed(4));
+    // Variation A: Right strip full height, Bottom strip under main block
+    const rightStripA = remW >= w ? generateBlock(pureLand.totalSpanX + gapX, 0, remW, usableLength, w, h, 0, false, false) : null;
+    const bottomStripA = remH >= h ? generateBlock(0, pureLand.totalSpanY + gapY, pureLand.totalSpanX, remH, w, h, 0, false, false) : null;
+    const extraA = (rightStripA?.count || 0) + (bottomStripA?.count || 0);
+    if (extraA > 0) {
+      candidates.push({
+        type: 'mixed',
+        modeUsed: 'mixed',
+        summary: `${pureLand.count} landscape + ${extraA} portrait (mixed)`,
+        count: pureLand.count + extraA,
+        modules: [...pureLand.modules, ...(rightStripA?.modules || []), ...(bottomStripA?.modules || [])],
+        walkways: pureLand.walkways
+      });
+    }
 
-      generated.push({
-        id: `pv-${Date.now()}-${idCounter++}`,
-        x: posX,
-        y: posY,
-        rotation: chosen.rot,
-        selected: false
+    // Variation B: Bottom strip full width, Right strip above bottom strip
+    const bottomStripB = remH >= h ? generateBlock(0, pureLand.totalSpanY + gapY, usableWidth, remH, w, h, 0, false, false) : null;
+    const rightStripB = remW >= w ? generateBlock(pureLand.totalSpanX + gapX, 0, remW, pureLand.totalSpanY, w, h, 0, false, false) : null;
+    const extraB = (rightStripB?.count || 0) + (bottomStripB?.count || 0);
+    if (extraB > 0) {
+      candidates.push({
+        type: 'mixed',
+        modeUsed: 'mixed',
+        summary: `${pureLand.count} landscape + ${extraB} portrait (mixed)`,
+        count: pureLand.count + extraB,
+        modules: [...pureLand.modules, ...(rightStripB?.modules || []), ...(bottomStripB?.modules || [])],
+        walkways: pureLand.walkways
       });
     }
   }
 
-  // Generate walkway corridor bounding boxes on roof
-  const walkwayCorridors = [];
-  if (hasHWalkways) {
-    chosen.rowLayout.walkways.forEach(w => {
-      walkwayCorridors.push({
-        x: Number(startX.toFixed(4)),
-        y: Number((startY + w.start).toFixed(4)),
-        width: Number(chosen.colLayout.totalSpan.toFixed(4)),
-        height: Number(w.width.toFixed(4)),
-        direction: 'horizontal'
+  // Main Portrait + Right Strip Landscape + Bottom Strip Landscape
+  if (purePort.count > 0) {
+    const remW = usableWidth - (purePort.totalSpanX + gapX);
+    const remH = usableLength - (purePort.totalSpanY + gapY);
+
+    // Variation A: Right strip full height, Bottom strip under main block
+    const rightStripA = remW >= h ? generateBlock(purePort.totalSpanX + gapX, 0, remW, usableLength, h, w, 90, false, false) : null;
+    const bottomStripA = remH >= w ? generateBlock(0, purePort.totalSpanY + gapY, purePort.totalSpanX, remH, h, w, 90, false, false) : null;
+    const extraA = (rightStripA?.count || 0) + (bottomStripA?.count || 0);
+    if (extraA > 0) {
+      candidates.push({
+        type: 'mixed',
+        modeUsed: 'mixed',
+        summary: `${purePort.count} portrait + ${extraA} landscape (mixed)`,
+        count: purePort.count + extraA,
+        modules: [...purePort.modules, ...(rightStripA?.modules || []), ...(bottomStripA?.modules || [])],
+        walkways: purePort.walkways
       });
-    });
-  }
-  if (hasVWalkways) {
-    chosen.colLayout.walkways.forEach(w => {
-      walkwayCorridors.push({
-        x: Number((startX + w.start).toFixed(4)),
-        y: Number(startY.toFixed(4)),
-        width: Number(w.width.toFixed(4)),
-        height: Number(chosen.rowLayout.totalSpan.toFixed(4)),
-        direction: 'vertical'
+    }
+
+    // Variation B: Bottom strip full width, Right strip above bottom strip
+    const bottomStripB = remH >= w ? generateBlock(0, purePort.totalSpanY + gapY, usableWidth, remH, h, w, 90, false, false) : null;
+    const rightStripB = remW >= h ? generateBlock(purePort.totalSpanX + gapX, 0, remW, purePort.totalSpanY, h, w, 90, false, false) : null;
+    const extraB = (rightStripB?.count || 0) + (bottomStripB?.count || 0);
+    if (extraB > 0) {
+      candidates.push({
+        type: 'mixed',
+        modeUsed: 'mixed',
+        summary: `${purePort.count} portrait + ${extraB} landscape (mixed)`,
+        count: purePort.count + extraB,
+        modules: [...purePort.modules, ...(rightStripB?.modules || []), ...(bottomStripB?.modules || [])],
+        walkways: purePort.walkways
       });
-    });
+    }
   }
 
-  return {
-    modules: generated,
-    walkways: walkwayCorridors,
-    modeUsed: chosen.rot === 90 ? 'landscape' : 'portrait',
-    count: generated.length,
-    cols: chosen.colLayout.count,
-    rows: chosen.rowLayout.count
-  };
+  // Winner Selection:
+  // Default to the better of the pure orientations
+  let bestCandidate = candPureLandscape.count >= candPurePortrait.count ? candPureLandscape : candPurePortrait;
+  let maxCount = bestCandidate.count;
+
+  // If a mixed orientation achieves strictly more modules, mixed wins!
+  for (const cand of candidates) {
+    if (cand.count > maxCount) {
+      maxCount = cand.count;
+      bestCandidate = cand;
+    }
+  }
+
+  return finalizeCandidate(bestCandidate);
 }
 
 /**

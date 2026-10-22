@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=17">
+  <link rel="stylesheet" href="css/styles.css?v=18">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=17"></script>
+  <script type="module" src="js/app.js?v=18"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -420,7 +420,7 @@
 
           <!-- Auto-Fill Controls -->
           <div class="btn-group">
-            <button id="btn-autofill-optimal" class="btn" :class="autoFillMode === 'optimal' ? 'btn-primary' : ''" @click="runAutoFill('optimal')" title="Calculate layout with maximum power output">
+            <button id="btn-autofill-optimal" class="btn" :class="autoFillMode === 'optimal' ? 'btn-primary' : ''" @click="runAutoFill('optimal')" title="Calculate layout with maximum space utilization & power (pure or mixed orientations)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7v7H3z"/><path d="M14 3h7v7h-7z"/><path d="M14 14h7v7h-7z"/><path d="M3 14h7v7H3z"/></svg>
               <span class="btn-text-responsive">Auto (Best)</span>
             </button>
