@@ -1,0 +1,631 @@
+/**
+ * Main Application Controller with Alpine.js
+ */
+
+import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS } from './presets.js?v=4';
+import {
+  snapToGrid,
+  getRotatedDimensions,
+  getModuleBounds,
+  evaluateModuleBoundary,
+  detectCollisions,
+  calculateAutoFill,
+  findFreeSpawnPosition
+} from './layout.js?v=4';
+import { SvgCanvasManager } from './canvas.js?v=4';
+
+document.addEventListener('alpine:init', () => {
+  Alpine.data('roofPlannerApp', () => ({
+    // Presets catalog
+    modulePresets: MODULE_PRESETS,
+    roofPresets: ROOF_PRESETS,
+    rasterOptions: RASTER_OPTIONS,
+
+    // Active configurations
+    roof: {
+      width: 12.0,      // meters
+      length: 8.0,      // meters
+      setback: 0.5,     // meters safety border
+      preset: 'res_standard'
+    },
+
+    module: {
+      width: 1134,      // mm
+      height: 1762,     // mm
+      power: 430,       // Wp
+      gapX: 20,         // mm
+      gapY: 20,         // mm
+      preset: 'standard_430'
+    },
+
+    grid: {
+      enabled: true,
+      step: 0.25,       // meters
+      showGrid: true
+    },
+
+    autoFillMode: 'optimal', // 'optimal' | 'portrait' | 'landscape'
+
+    // Placed modules array: { id, x, y, rotation, selected }
+    modules: [],
+    selectedIds: [],
+
+    // Collisions and boundaries cache
+    collidingIds: new Set(),
+
+    // Undo / Redo history
+    history: [],
+    historyIndex: -1,
+
+    // Toast notification
+    toast: null,
+    toastTimer: null,
+
+    // Canvas manager reference
+    canvasManager: null,
+
+    init() {
+      // Initialize SVG Canvas Manager
+      const svgEl = document.getElementById('roof-canvas-svg');
+      if (svgEl) {
+        this.canvasManager = new SvgCanvasManager(
+          svgEl,
+          () => ({
+            modules: this.modules,
+            selectedIds: this.selectedIds,
+            grid: this.grid,
+            roof: this.roof,
+            module: this.module
+          }),
+          (newState) => {
+            if (newState.modules) {
+              this.modules = newState.modules;
+              this.refreshValidation();
+            }
+            if (newState.selectedIds !== undefined) {
+              this.selectedIds = newState.selectedIds;
+            }
+          }
+        );
+
+        this.canvasManager.onDragComplete = () => {
+          this.saveHistory('Move module(s)');
+          this.refreshValidation();
+        };
+      }
+
+      if (window.location.search.includes('reset=1')) {
+        localStorage.removeItem('pv_roof_planner_state');
+      }
+
+      // Restore saved state from localStorage or run initial auto-fill
+      const saved = localStorage.getItem('pv_roof_planner_state');
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed.roof) this.roof = { ...this.roof, ...parsed.roof };
+          if (parsed.module) this.module = { ...this.module, ...parsed.module };
+          if (parsed.grid) this.grid = { ...this.grid, ...parsed.grid };
+          if (Array.isArray(parsed.modules) && parsed.modules.length > 0) {
+            this.modules = parsed.modules;
+          } else {
+            this.runAutoFill('optimal', false);
+          }
+        } catch (e) {
+          console.error('Failed to load saved state:', e);
+          this.runAutoFill('optimal', false);
+        }
+      } else {
+        this.runAutoFill('optimal', false);
+      }
+
+      this.refreshValidation();
+
+      // Fit view to roof on start
+      this.$nextTick(() => {
+        if (this.canvasManager) {
+          this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
+          this.renderCanvasModules();
+        }
+      });
+
+      // Register keyboard shortcuts
+      this.initKeyboardShortcuts();
+
+      // Auto-save debounce watcher
+      this.$watch('modules', () => {
+        this.persistState();
+        this.renderCanvasModules();
+      });
+      this.$watch('selectedIds', () => this.renderCanvasModules());
+      this.$watch('roof', () => this.persistState());
+      this.$watch('module', () => this.persistState());
+      this.$watch('grid', () => this.persistState());
+
+      this.saveHistory('Initial State');
+    },
+
+    // --- Validation, Collisions & Visual Sync ---
+    refreshValidation() {
+      this.collidingIds = detectCollisions(this.modules, this.module);
+      this.renderCanvasModules();
+    },
+
+    renderCanvasModules() {
+      if (!this.canvasManager) return;
+      this.canvasManager.renderModules(
+        this.modules,
+        this.module,
+        this.selectedIds,
+        (mod) => this.getModuleStatus(mod),
+        {
+          onPointerDown: (mod, e) => this.onModulePointerDown(mod, e),
+          onClick: (mod, e) => this.toggleModuleSelection(mod, e)
+        }
+      );
+    },
+
+    getModuleStatus(mod) {
+      if (this.collidingIds.has(mod.id)) {
+        return 'collision';
+      }
+      return evaluateModuleBoundary(mod, this.module, this.roof);
+    },
+
+    getModuleDims(mod) {
+      return getRotatedDimensions(this.module, mod.rotation || 0);
+    },
+
+    // --- Computed Metrics ---
+    get totalPowerKW() {
+      return ((this.modules.length * this.module.power) / 1000).toFixed(2);
+    },
+
+    get roofArea() {
+      return (this.roof.width * this.roof.length).toFixed(1);
+    },
+
+    get usableArea() {
+      const uw = Math.max(0, this.roof.width - 2 * this.roof.setback);
+      const ul = Math.max(0, this.roof.length - 2 * this.roof.setback);
+      return (uw * ul).toFixed(1);
+    },
+
+    get pvTotalArea() {
+      const singleArea = (this.module.width / 1000) * (this.module.height / 1000);
+      return (this.modules.length * singleArea).toFixed(1);
+    },
+
+    get coveragePercent() {
+      const rArea = this.roof.width * this.roof.length;
+      if (rArea <= 0) return 0;
+      const singleArea = (this.module.width / 1000) * (this.module.height / 1000);
+      const pvArea = this.modules.length * singleArea;
+      return Math.min(100, Math.round((pvArea / rArea) * 100));
+    },
+
+    get powerDensity() {
+      const rArea = this.roof.width * this.roof.length;
+      if (rArea <= 0) return 0;
+      const totalW = this.modules.length * this.module.power;
+      return Math.round(totalW / rArea);
+    },
+
+    get issueCount() {
+      let count = 0;
+      for (const m of this.modules) {
+        const s = this.getModuleStatus(m);
+        if (s === 'collision' || s === 'error_roof' || s === 'warning_setback') {
+          count++;
+        }
+      }
+      return count;
+    },
+
+    // --- Presets Handlers ---
+    onRoofPresetChange() {
+      const preset = this.roofPresets[this.roof.preset];
+      if (preset) {
+        this.roof.width = preset.width;
+        this.roof.length = preset.length;
+        this.roof.setback = preset.setback;
+        this.runAutoFill(this.autoFillMode);
+        if (this.canvasManager) {
+          this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
+        }
+        this.showToast(`Applied preset: ${preset.name}`);
+      }
+    },
+
+    onModulePresetChange() {
+      const preset = this.modulePresets[this.module.preset];
+      if (preset) {
+        this.module.width = preset.width;
+        this.module.height = preset.height;
+        this.module.power = preset.power;
+        this.refreshValidation();
+        this.showToast(`Selected module: ${preset.name}`);
+      }
+    },
+
+    onRoofDimensionChange() {
+      this.refreshValidation();
+      if (this.canvasManager) {
+        this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
+      }
+      this.saveHistory('Change roof dimensions');
+    },
+
+    // --- Module Operations ---
+    runAutoFill(mode = this.autoFillMode, recordUndo = true) {
+      this.autoFillMode = mode;
+      const step = this.grid.enabled ? this.grid.step : 0.05;
+      const result = calculateAutoFill(this.roof, this.module, mode, step);
+
+      this.modules = result.modules;
+      this.selectedIds = [];
+      this.refreshValidation();
+
+      if (recordUndo) {
+        this.saveHistory(`Auto-fill (${result.modeUsed})`);
+      }
+      this.showToast(`Auto-filled ${result.count} modules (${result.modeUsed})`);
+    },
+
+    addModule() {
+      const step = this.grid.enabled ? this.grid.step : 0.1;
+      const pos = findFreeSpawnPosition(this.modules, this.module, this.roof, step);
+
+      const newMod = {
+        id: `pv-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        x: pos.x,
+        y: pos.y,
+        rotation: 0,
+        selected: true
+      };
+
+      this.modules.push(newMod);
+      this.selectedIds = [newMod.id];
+      this.refreshValidation();
+      this.saveHistory('Add module');
+      this.showToast('Added 1 PV module');
+    },
+
+    rotateSelected() {
+      if (this.selectedIds.length === 0) {
+        this.showToast('Select one or more modules to rotate', 'info');
+        return;
+      }
+
+      const gridStep = this.grid.enabled ? this.grid.step : 0.05;
+
+      this.modules = this.modules.map(m => {
+        if (this.selectedIds.includes(m.id)) {
+          const nextRot = (m.rotation === 0 || m.rotation === 180) ? 90 : 0;
+          return {
+            ...m,
+            rotation: nextRot,
+            x: snapToGrid(m.x, gridStep),
+            y: snapToGrid(m.y, gridStep)
+          };
+        }
+        return m;
+      });
+
+      this.refreshValidation();
+      this.saveHistory('Rotate module(s)');
+      this.showToast(`Rotated ${this.selectedIds.length} module(s)`);
+    },
+
+    duplicateSelected() {
+      if (this.selectedIds.length === 0) return;
+
+      const offset = this.grid.enabled ? Math.max(this.grid.step, 0.2) : 0.2;
+      const newItems = [];
+      const newIds = [];
+
+      this.modules.forEach(m => {
+        if (this.selectedIds.includes(m.id)) {
+          const dup = {
+            ...m,
+            id: `pv-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+            x: snapToGrid(m.x + offset, this.grid.step),
+            y: snapToGrid(m.y + offset, this.grid.step)
+          };
+          newItems.push(dup);
+          newIds.push(dup.id);
+        }
+      });
+
+      this.modules = [...this.modules, ...newItems];
+      this.selectedIds = newIds;
+      this.refreshValidation();
+      this.saveHistory('Duplicate module(s)');
+      this.showToast(`Duplicated ${newItems.length} module(s)`);
+    },
+
+    deleteSelected() {
+      if (this.selectedIds.length === 0) return;
+      const count = this.selectedIds.length;
+      this.modules = this.modules.filter(m => !this.selectedIds.includes(m.id));
+      this.selectedIds = [];
+      this.refreshValidation();
+      this.saveHistory('Delete module(s)');
+      this.showToast(`Deleted ${count} module(s)`);
+    },
+
+    clearAll() {
+      if (this.modules.length === 0) return;
+      if (confirm(`Remove all ${this.modules.length} PV modules from the roof?`)) {
+        this.modules = [];
+        this.selectedIds = [];
+        this.refreshValidation();
+        this.saveHistory('Clear all modules');
+        this.showToast('Cleared all modules');
+      }
+    },
+
+    selectAll() {
+      this.selectedIds = this.modules.map(m => m.id);
+      this.showToast(`Selected all ${this.modules.length} modules`);
+    },
+
+    deselectAll() {
+      this.selectedIds = [];
+    },
+
+    toggleModuleSelection(mod, event) {
+      if (event.shiftKey) {
+        if (this.selectedIds.includes(mod.id)) {
+          this.selectedIds = this.selectedIds.filter(id => id !== mod.id);
+        } else {
+          this.selectedIds.push(mod.id);
+        }
+      } else {
+        this.selectedIds = [mod.id];
+      }
+    },
+
+    // --- Drag Interaction Delegator ---
+    onModulePointerDown(mod, event) {
+      if (this.canvasManager) {
+        this.canvasManager.startModuleDrag(mod, event);
+      }
+    },
+
+    // --- View Navigation ---
+    zoomIn() {
+      if (this.canvasManager) this.canvasManager.zoomBy(0.85);
+    },
+
+    zoomOut() {
+      if (this.canvasManager) this.canvasManager.zoomBy(1.18);
+    },
+
+    fitToRoof() {
+      if (this.canvasManager) {
+        this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
+        this.showToast('Fit view to roof');
+      }
+    },
+
+    // --- Undo / Redo System ---
+    saveHistory(actionName = 'Edit') {
+      const snapshot = JSON.stringify({
+        modules: this.modules,
+        roof: this.roof,
+        module: this.module
+      });
+
+      // Truncate forward history if branching
+      if (this.historyIndex < this.history.length - 1) {
+        this.history = this.history.slice(0, this.historyIndex + 1);
+      }
+
+      this.history.push({ name: actionName, data: snapshot });
+      if (this.history.length > 30) this.history.shift();
+      this.historyIndex = this.history.length - 1;
+    },
+
+    undo() {
+      if (this.historyIndex > 0) {
+        this.historyIndex--;
+        const state = JSON.parse(this.history[this.historyIndex].data);
+        this.modules = state.modules;
+        this.roof = state.roof;
+        this.module = state.module;
+        this.selectedIds = [];
+        this.refreshValidation();
+        this.showToast(`Undo: ${this.history[this.historyIndex].name}`);
+      }
+    },
+
+    redo() {
+      if (this.historyIndex < this.history.length - 1) {
+        this.historyIndex++;
+        const state = JSON.parse(this.history[this.historyIndex].data);
+        this.modules = state.modules;
+        this.roof = state.roof;
+        this.module = state.module;
+        this.selectedIds = [];
+        this.refreshValidation();
+        this.showToast(`Redo: ${this.history[this.historyIndex].name}`);
+      }
+    },
+
+    // --- Keyboard Shortcuts ---
+    initKeyboardShortcuts() {
+      window.addEventListener('keydown', (e) => {
+        // Ignore if typing inside input / select
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName)) {
+          return;
+        }
+
+        if (e.key === 'r' || e.key === 'R') {
+          e.preventDefault();
+          this.rotateSelected();
+        } else if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (this.selectedIds.length > 0) {
+            e.preventDefault();
+            this.deleteSelected();
+          }
+        } else if (e.key === 'd' || e.key === 'D') {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            this.duplicateSelected();
+          }
+        } else if (e.key === 'a' || e.key === 'A') {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            this.selectAll();
+          }
+        } else if (e.key === 'z' || e.key === 'Z') {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            if (e.shiftKey) {
+              this.redo();
+            } else {
+              this.undo();
+            }
+          }
+        } else if (e.key === 'y' || e.key === 'Y') {
+          if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            this.redo();
+          }
+        } else if (e.key === 'Escape') {
+          this.deselectAll();
+        } else if (e.key === 'f' || e.key === 'F') {
+          this.fitToRoof();
+        }
+      });
+    },
+
+    // --- Toast Notifications ---
+    showToast(message, type = 'success') {
+      if (this.toastTimer) clearTimeout(this.toastTimer);
+      this.toast = { message, type };
+      this.toastTimer = setTimeout(() => {
+        this.toast = null;
+      }, 3000);
+    },
+
+    // --- Persistence ---
+    persistState() {
+      const data = {
+        roof: this.roof,
+        module: this.module,
+        grid: this.grid,
+        modules: this.modules
+      };
+      try {
+        localStorage.setItem('pv_roof_planner_state', JSON.stringify(data));
+      } catch (_) {}
+    },
+
+    // --- Exports (SVG / PNG / BOM) ---
+    exportSVG() {
+      const svgEl = document.getElementById('roof-canvas-svg');
+      if (!svgEl) return;
+
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svgEl);
+
+      // Add namespaces if missing
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const downloadLink = document.createElement('a');
+      downloadLink.href = url;
+      downloadLink.download = `pv_roof_layout_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.svg`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(url);
+      this.showToast('Exported SVG layout blueprint');
+    },
+
+    exportPNG() {
+      const svgEl = document.getElementById('roof-canvas-svg');
+      if (!svgEl) return;
+
+      const serializer = new XMLSerializer();
+      const svgString = serializer.serializeToString(svgEl);
+      const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        // Render at crisp 2400px wide export
+        const aspect = (this.roof.length + 2) / (this.roof.width + 2);
+        canvas.width = 2400;
+        canvas.height = Math.round(2400 * aspect);
+
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0B0F19';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // Watermark / Info footer
+        ctx.fillStyle = '#F8FAFC';
+        ctx.font = 'bold 32px Inter, sans-serif';
+        ctx.fillText(`PV Flat Roof Plan: ${this.roof.width}m × ${this.roof.length}m | ${this.modules.length} Modules (${this.totalPowerKW} kWp)`, 40, 60);
+
+        ctx.font = '22px Inter, sans-serif';
+        ctx.fillStyle = '#94A3B8';
+        ctx.fillText(`Module: ${this.module.width}×${this.module.height}mm (${this.module.power}Wp) | Roof Coverage: ${this.coveragePercent}%`, 40, 100);
+
+        const pngUrl = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = pngUrl;
+        link.download = `pv_roof_plan_${this.roof.width}x${this.roof.length}m.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+        this.showToast('Exported high-resolution PNG image');
+      };
+      img.src = url;
+    },
+
+    exportBOM() {
+      const rows = [
+        ['Parameter', 'Value', 'Unit'],
+        ['Roof Width', this.roof.width, 'm'],
+        ['Roof Length', this.roof.length, 'm'],
+        ['Roof Area', this.roofArea, 'm²'],
+        ['Safety Setback Border', this.roof.setback, 'm'],
+        ['Usable Area', this.usableArea, 'm²'],
+        ['Module Width', this.module.width, 'mm'],
+        ['Module Height', this.module.height, 'mm'],
+        ['Module Power', this.module.power, 'Wp'],
+        ['Inter-Module Gap X', this.module.gapX, 'mm'],
+        ['Inter-Module Gap Y', this.module.gapY, 'mm'],
+        ['Total Modules Placed', this.modules.length, 'units'],
+        ['Total System Peak Power', this.totalPowerKW, 'kWp'],
+        ['Total PV Surface Area', this.pvTotalArea, 'm²'],
+        ['Roof Coverage', this.coveragePercent, '%'],
+        ['Specific Power Density', this.powerDensity, 'Wp/m²'],
+        ['Issues / Collisions', this.issueCount, 'items'],
+        [],
+        ['Module ID', 'Position X (m)', 'Position Y (m)', 'Rotation (deg)', 'Status']
+      ];
+
+      this.modules.forEach(m => {
+        rows.push([m.id, m.x, m.y, m.rotation, this.getModuleStatus(m)]);
+      });
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + rows.map(e => e.join(',')).join('\n');
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement('a');
+      link.setAttribute('href', encodedUri);
+      link.setAttribute('download', `pv_bill_of_materials_${this.roof.width}x${this.roof.length}m.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      this.showToast('Exported Bill of Materials (CSV)');
+    }
+  }));
+});
