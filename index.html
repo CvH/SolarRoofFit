@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=20">
+  <link rel="stylesheet" href="css/styles.css?v=21">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=20"></script>
+  <script type="module" src="js/app.js?v=21"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -125,15 +125,6 @@
             </span>
           </div>
 
-          <!-- Roof Preset Selector -->
-          <div class="form-group">
-            <label class="form-label" for="select-roof-preset">Roof Preset</label>
-            <select id="select-roof-preset" class="select-control" x-model="roof.preset" @change="onRoofPresetChange()">
-              <template x-for="(p, key) in roofPresets" :key="key">
-                <option :value="key" x-text="p.name"></option>
-              </template>
-            </select>
-          </div>
 
           <!-- Width Input -->
           <div class="form-group">

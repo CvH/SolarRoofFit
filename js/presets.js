@@ -40,56 +40,6 @@ export const MODULE_PRESETS = {
   }
 };
 
-export const ROOF_PRESETS = {
-  res_standard: {
-    name: 'Residential Flat Roof (12m × 8m)',
-    width: 12.0,
-    length: 8.0,
-    setback: 0.5,
-    setbackTop: 0.5,
-    setbackBottom: 0.5,
-    setbackLeft: 0.5,
-    setbackRight: 0.5,
-    setbackLinked: true,
-    description: 'Typical single-family home or duplex flat roof with 50cm safety border.'
-  },
-  garage_double: {
-    name: 'Double Garage / Carport (6.5m × 6m)',
-    width: 6.5,
-    length: 6.0,
-    setback: 0.3,
-    setbackTop: 0.3,
-    setbackBottom: 0.3,
-    setbackLeft: 0.3,
-    setbackRight: 0.3,
-    setbackLinked: true,
-    description: 'Standard double garage with 30cm maintenance margin.'
-  },
-  commercial_hall: {
-    name: 'Commercial Warehouse (28m × 16m)',
-    width: 28.0,
-    length: 16.0,
-    setback: 0.8,
-    setbackTop: 0.8,
-    setbackBottom: 0.8,
-    setbackLeft: 0.8,
-    setbackRight: 0.8,
-    setbackLinked: true,
-    description: 'Commercial facility with 80cm edge safety setback for wind loads.'
-  },
-  terrace_small: {
-    name: 'Roof Terrace / Small Flat (5.5m × 4m)',
-    width: 5.5,
-    length: 4.0,
-    setback: 0.25,
-    setbackTop: 0.25,
-    setbackBottom: 0.25,
-    setbackLeft: 0.25,
-    setbackRight: 0.25,
-    setbackLinked: true,
-    description: 'Compact urban flat roof with minimal safety border.'
-  }
-};
 
 export const RASTER_OPTIONS = [
   { label: '5 cm (0.05m)', value: 0.05 },

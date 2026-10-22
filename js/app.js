@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=17';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=21';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,8 +12,8 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=17';
-import { SvgCanvasManager } from './canvas.js?v=17';
+} from './layout.js?v=21';
+import { SvgCanvasManager } from './canvas.js?v=21';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -39,21 +39,19 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('roofPlannerApp', () => ({
     // Presets catalog
     modulePresets: MODULE_PRESETS,
-    roofPresets: ROOF_PRESETS,
     rasterOptions: RASTER_OPTIONS,
     walkwayIntervalOptions: WALKWAY_INTERVAL_OPTIONS,
 
-    // Active configurations
+    // Active configurations (default 8m x 8m)
     roof: {
-      width: 12.0,          // meters
+      width: 8.0,           // meters
       length: 8.0,          // meters
       setback: 0.5,         // uniform master setback
       setbackTop: 0.5,      // individual side setbacks
       setbackBottom: 0.5,
       setbackLeft: 0.5,
       setbackRight: 0.5,
-      setbackLinked: true,  // true = all 4 sides linked, false = independent
-      preset: 'res_standard'
+      setbackLinked: true   // true = all 4 sides linked, false = independent
     },
 
     walkway: {
@@ -327,26 +325,6 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Presets Handlers ---
-    onRoofPresetChange() {
-      const preset = this.roofPresets[this.roof.preset];
-      if (preset) {
-        this.roof.width = preset.width;
-        this.roof.length = preset.length;
-        this.roof.setback = preset.setback;
-        this.roof.setbackTop = preset.setbackTop !== undefined ? preset.setbackTop : preset.setback;
-        this.roof.setbackBottom = preset.setbackBottom !== undefined ? preset.setbackBottom : preset.setback;
-        this.roof.setbackLeft = preset.setbackLeft !== undefined ? preset.setbackLeft : preset.setback;
-        this.roof.setbackRight = preset.setbackRight !== undefined ? preset.setbackRight : preset.setback;
-        this.roof.setbackLinked = preset.setbackLinked !== undefined ? preset.setbackLinked : true;
-
-        this.runAutoFill(this.autoFillMode);
-        if (this.canvasManager) {
-          this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
-        }
-        this.showToast(`Applied preset: ${preset.name}`);
-      }
-    },
-
     onModulePresetChange() {
       const preset = this.modulePresets[this.module.preset];
       if (preset) {
