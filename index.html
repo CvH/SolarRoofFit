@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=8">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=4"></script>
+  <script type="module" src="js/app.js?v=8"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -73,15 +73,15 @@
         <div class="btn-group">
           <button id="btn-rotate-module" class="btn" :disabled="selectedIds.length === 0" @click="rotateSelected()" title="Rotate Selected Module 90° (Hotkey: R)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-            Rotate (R)
+            <span class="btn-text-responsive">Rotate (R)</span>
           </button>
           <button id="btn-duplicate-module" class="btn" :disabled="selectedIds.length === 0" @click="duplicateSelected()" title="Duplicate Selected (Ctrl+D)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            Duplicate
+            <span class="btn-text-responsive">Duplicate</span>
           </button>
           <button id="btn-delete-module" class="btn" :disabled="selectedIds.length === 0" @click="deleteSelected()" title="Delete Selected (Del/Backspace)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-            Delete
+            <span class="btn-text-responsive">Delete</span>
           </button>
         </div>
 
@@ -100,6 +100,56 @@
           </button>
         </div>
       </div>
+
+      <div class="divider-v"></div>
+
+      <!-- Top Bar Metrics HUD (Smaller) -->
+      <div class="metrics-hud">
+        <div class="metric-card highlight">
+          <div class="metric-label">Modules Placed</div>
+          <div class="metric-value-wrap">
+            <span class="metric-value" x-text="modules.length"></span>
+            <span class="metric-unit">pcs</span>
+          </div>
+        </div>
+
+        <div class="metric-card highlight">
+          <div class="metric-label">System Power</div>
+          <div class="metric-value-wrap">
+            <span class="metric-value" x-text="totalPowerKW"></span>
+            <span class="metric-unit">kWp</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">Roof Coverage</div>
+          <div class="metric-value-wrap">
+            <span class="metric-value" x-text="coveragePercent + '%'"></span>
+            <span class="metric-unit" x-text="'(' + pvTotalArea + ' m²)'"></span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">Power Density</div>
+          <div class="metric-value-wrap">
+            <span class="metric-value" x-text="powerDensity"></span>
+            <span class="metric-unit">Wp/m²</span>
+          </div>
+        </div>
+
+        <div class="metric-card status-card">
+          <div class="status-pill ok" x-show="issueCount === 0">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+            Optimal Alignment
+          </div>
+          <div class="status-pill error" x-show="issueCount > 0" style="display: none;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span x-text="issueCount + ' Warning(s)'"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider-v"></div>
 
       <!-- Right Actions: Exports & Snap Settings -->
       <div class="header-actions">
@@ -284,52 +334,6 @@
 
       <!-- Center Viewport & Interactive SVG Canvas -->
       <main class="canvas-viewport" id="canvas-container">
-
-        <!-- Floating Real-Time Metrics HUD -->
-        <div class="metrics-hud">
-          <div class="metric-card highlight">
-            <div class="metric-label">Modules Placed</div>
-            <div class="metric-value-wrap">
-              <span class="metric-value" x-text="modules.length"></span>
-              <span class="metric-unit">pcs</span>
-            </div>
-          </div>
-
-          <div class="metric-card highlight">
-            <div class="metric-label">System Power</div>
-            <div class="metric-value-wrap">
-              <span class="metric-value" x-text="totalPowerKW"></span>
-              <span class="metric-unit">kWp</span>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-label">Roof Coverage</div>
-            <div class="metric-value-wrap">
-              <span class="metric-value" x-text="coveragePercent + '%'"></span>
-              <span class="metric-unit" x-text="'(' + pvTotalArea + ' m²)'"></span>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-label">Power Density</div>
-            <div class="metric-value-wrap">
-              <span class="metric-value" x-text="powerDensity"></span>
-              <span class="metric-unit">Wp/m²</span>
-            </div>
-          </div>
-
-          <div class="metric-card" style="display:flex; align-items:center;">
-            <div class="status-pill ok" x-show="issueCount === 0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-              Optimal Alignment
-            </div>
-            <div class="status-pill error" x-show="issueCount > 0">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span x-text="issueCount + ' Warning(s)'"></span>
-            </div>
-          </div>
-        </div>
 
         <!-- The Interactive Vector SVG Canvas -->
         <svg id="roof-canvas-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
