@@ -47,6 +47,23 @@ export function getModuleBounds(mod, moduleConfig) {
 }
 
 /**
+ * Returns safe perimeter borders (setbacks) for all 4 edges in meters.
+ */
+export function getRoofSetbacks(roofConfig) {
+  if (roofConfig.setbackLinked !== false) {
+    const s = Math.max(0, roofConfig.setback !== undefined ? roofConfig.setback : 0.5);
+    return { top: s, bottom: s, left: s, right: s };
+  }
+  const fallback = roofConfig.setback !== undefined ? roofConfig.setback : 0.5;
+  return {
+    top: Math.max(0, roofConfig.setbackTop !== undefined ? roofConfig.setbackTop : fallback),
+    bottom: Math.max(0, roofConfig.setbackBottom !== undefined ? roofConfig.setbackBottom : fallback),
+    left: Math.max(0, roofConfig.setbackLeft !== undefined ? roofConfig.setbackLeft : fallback),
+    right: Math.max(0, roofConfig.setbackRight !== undefined ? roofConfig.setbackRight : fallback)
+  };
+}
+
+/**
  * Evaluates module positioning relative to roof edges and safety setback.
  * Returns: 'ok' | 'warning_setback' | 'error_roof'
  */
@@ -65,12 +82,12 @@ export function evaluateModuleBoundary(mod, moduleConfig, roofConfig) {
   }
 
   // Inside roof, but violates safety setback
-  const setback = roofConfig.setback || 0;
+  const sb = getRoofSetbacks(roofConfig);
   if (
-    b.x < setback - EPS ||
-    b.y < setback - EPS ||
-    b.right > roofConfig.width - setback + EPS ||
-    b.bottom > roofConfig.length - setback + EPS
+    b.x < sb.left - EPS ||
+    b.y < sb.top - EPS ||
+    b.right > roofConfig.width - sb.right + EPS ||
+    b.bottom > roofConfig.length - sb.bottom + EPS
   ) {
     return 'warning_setback';
   }
@@ -106,16 +123,62 @@ export function detectCollisions(modules, moduleConfig) {
 }
 
 /**
- * Calculates optimal 2D grid layout to maximize modules on the flat roof.
- * Respects setbacks, module gaps, and user raster alignment.
+ * Calculates optimal spacing, offsets, and walkway insertions along one axis.
  */
-export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1) {
-  const setback = Math.max(0, roofConfig.setback || 0);
-  const usableWidth = roofConfig.width - (2 * setback);
-  const usableLength = roofConfig.length - (2 * setback);
+export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkways, interval, walkWidth) {
+  if (availableSpan < modSpan) return { count: 0, totalSpan: 0, offsets: [], walkways: [] };
+
+  let count = 0;
+  const offsets = [];
+  const walkways = [];
+  let curOffset = 0;
+
+  while (true) {
+    const nextIndex = count;
+    let addedSpace = 0;
+    let isWalkway = false;
+    let walkStart = 0;
+
+    if (nextIndex > 0) {
+      if (hasWalkways && nextIndex % interval === 0) {
+        addedSpace = walkWidth;
+        isWalkway = true;
+        walkStart = curOffset;
+      } else {
+        addedSpace = baseGap;
+      }
+    }
+
+    const testOffset = nextIndex === 0 ? 0 : curOffset + addedSpace;
+    const testTotal = testOffset + modSpan;
+
+    if (testTotal <= availableSpan + 0.0001) {
+      if (isWalkway) {
+        walkways.push({ start: Number(walkStart.toFixed(4)), width: walkWidth });
+      }
+      offsets.push(Number(testOffset.toFixed(4)));
+      curOffset = testOffset + modSpan;
+      count++;
+    } else {
+      break;
+    }
+  }
+
+  const totalSpan = count > 0 ? Number((offsets[offsets.length - 1] + modSpan).toFixed(4)) : 0;
+  return { count, totalSpan, offsets, walkways };
+}
+
+/**
+ * Calculates optimal 2D grid layout to maximize modules on the flat roof.
+ * Respects 4-sided setbacks, clamp gaps, maintenance walkways, and raster alignment.
+ */
+export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1, walkwayConfig = null) {
+  const sb = getRoofSetbacks(roofConfig);
+  const usableWidth = roofConfig.width - sb.left - sb.right;
+  const usableLength = roofConfig.length - sb.top - sb.bottom;
 
   if (usableWidth <= 0 || usableLength <= 0) {
-    return { modules: [], modeUsed: orientationMode, count: 0 };
+    return { modules: [], walkways: [], modeUsed: orientationMode, count: 0 };
   }
 
   const gapX = ((moduleConfig.gapX !== undefined ? moduleConfig.gapX : 20) / 1000); // meters
@@ -124,16 +187,20 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
   const w = (moduleConfig.width || 1134) / 1000;
   const h = (moduleConfig.height || 1762) / 1000;
 
-  // Calculate Portrait packing
-  const calcGrid = (modW, modH, rot) => {
-    // Number of columns: (cols * modW) + ((cols - 1) * gapX) <= usableWidth
-    // cols * (modW + gapX) - gapX <= usableWidth
-    // cols <= (usableWidth + gapX) / (modW + gapX)
-    const cols = Math.max(0, Math.floor((usableWidth + gapX + 0.0001) / (modW + gapX)));
-    const rows = Math.max(0, Math.floor((usableLength + gapY + 0.0001) / (modH + gapY)));
-    const count = cols * rows;
+  const walkwayEnabled = !!walkwayConfig?.enabled;
+  const walkwayWidth = walkwayEnabled ? Math.max(0.2, walkwayConfig.width || 0.8) : 0;
+  const walkwayInterval = walkwayEnabled ? Math.max(1, walkwayConfig.interval || 2) : 9999;
+  const walkwayDir = walkwayConfig?.direction || 'horizontal';
 
-    return { cols, rows, count, modW, modH, rot };
+  const hasHWalkways = walkwayEnabled && (walkwayDir === 'horizontal' || walkwayDir === 'both');
+  const hasVWalkways = walkwayEnabled && (walkwayDir === 'vertical' || walkwayDir === 'both');
+
+  const calcGrid = (modW, modH, rot) => {
+    const colLayout = computeDimensionLayout(usableWidth, modW, gapX, hasVWalkways, walkwayInterval, walkwayWidth);
+    const rowLayout = computeDimensionLayout(usableLength, modH, gapY, hasHWalkways, walkwayInterval, walkwayWidth);
+    const count = colLayout.count * rowLayout.count;
+
+    return { colLayout, rowLayout, count, modW, modH, rot };
   };
 
   const portrait = calcGrid(w, h, 0);
@@ -151,46 +218,40 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     } else if (portrait.count > landscape.count) {
       chosen = portrait;
     } else {
-      // Tie breaker: pick the one with better aspect ratio utilization
-      const portOcc = portrait.cols * portrait.rows * (w * h);
-      const landOcc = landscape.cols * landscape.rows * (w * h);
+      const portOcc = portrait.colLayout.count * portrait.rowLayout.count * (w * h);
+      const landOcc = landscape.colLayout.count * landscape.rowLayout.count * (w * h);
       chosen = landOcc >= portOcc ? landscape : portrait;
     }
   }
 
   if (chosen.count <= 0) {
-    return { modules: [], modeUsed: chosen.rot === 90 ? 'landscape' : 'portrait', count: 0 };
+    return { modules: [], walkways: [], modeUsed: chosen.rot === 90 ? 'landscape' : 'portrait', count: 0 };
   }
 
-  // Calculate total occupied span
-  const totalSpanX = (chosen.cols * chosen.modW) + ((chosen.cols - 1) * gapX);
-  const totalSpanY = (chosen.rows * chosen.modH) + ((chosen.rows - 1) * gapY);
+  // Center array within safe zone
+  let startX = sb.left + ((usableWidth - chosen.colLayout.totalSpan) / 2);
+  let startY = sb.top + ((usableLength - chosen.rowLayout.totalSpan) / 2);
 
-  // Center the array within the usable area
-  let startX = setback + ((usableWidth - totalSpanX) / 2);
-  let startY = setback + ((usableLength - totalSpanY) / 2);
-
-  // Snap start position to current raster step
   startX = snapToGrid(startX, gridStep);
   startY = snapToGrid(startY, gridStep);
 
-  // Ensure snapped start still keeps entire array inside setback
-  if (startX < setback) startX = setback;
-  if (startY < setback) startY = setback;
-  if (startX + totalSpanX > roofConfig.width - setback) {
-    startX = Math.max(setback, roofConfig.width - setback - totalSpanX);
+  // Ensure within safe setback boundaries
+  if (startX < sb.left) startX = sb.left;
+  if (startY < sb.top) startY = sb.top;
+  if (startX + chosen.colLayout.totalSpan > roofConfig.width - sb.right) {
+    startX = Math.max(sb.left, roofConfig.width - sb.right - chosen.colLayout.totalSpan);
   }
-  if (startY + totalSpanY > roofConfig.length - setback) {
-    startY = Math.max(setback, roofConfig.length - setback - totalSpanY);
+  if (startY + chosen.rowLayout.totalSpan > roofConfig.length - sb.bottom) {
+    startY = Math.max(sb.top, roofConfig.length - sb.bottom - chosen.rowLayout.totalSpan);
   }
 
   const generated = [];
   let idCounter = 1;
 
-  for (let r = 0; r < chosen.rows; r++) {
-    for (let c = 0; c < chosen.cols; c++) {
-      const posX = Number((startX + c * (chosen.modW + gapX)).toFixed(4));
-      const posY = Number((startY + r * (chosen.modH + gapY)).toFixed(4));
+  for (let r = 0; r < chosen.rowLayout.count; r++) {
+    for (let c = 0; c < chosen.colLayout.count; c++) {
+      const posX = Number((startX + chosen.colLayout.offsets[c]).toFixed(4));
+      const posY = Number((startY + chosen.rowLayout.offsets[r]).toFixed(4));
 
       generated.push({
         id: `pv-${Date.now()}-${idCounter++}`,
@@ -202,12 +263,38 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     }
   }
 
+  // Generate walkway corridor bounding boxes on roof
+  const walkwayCorridors = [];
+  if (hasHWalkways) {
+    chosen.rowLayout.walkways.forEach(w => {
+      walkwayCorridors.push({
+        x: Number(startX.toFixed(4)),
+        y: Number((startY + w.start).toFixed(4)),
+        width: Number(chosen.colLayout.totalSpan.toFixed(4)),
+        height: Number(w.width.toFixed(4)),
+        direction: 'horizontal'
+      });
+    });
+  }
+  if (hasVWalkways) {
+    chosen.colLayout.walkways.forEach(w => {
+      walkwayCorridors.push({
+        x: Number((startX + w.start).toFixed(4)),
+        y: Number(startY.toFixed(4)),
+        width: Number(w.width.toFixed(4)),
+        height: Number(chosen.rowLayout.totalSpan.toFixed(4)),
+        direction: 'vertical'
+      });
+    });
+  }
+
   return {
     modules: generated,
+    walkways: walkwayCorridors,
     modeUsed: chosen.rot === 90 ? 'landscape' : 'portrait',
     count: generated.length,
-    cols: chosen.cols,
-    rows: chosen.rows
+    cols: chosen.colLayout.count,
+    rows: chosen.rowLayout.count
   };
 }
 
@@ -215,7 +302,7 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
  * Finds a suitable free position on the roof to spawn a new module.
  */
 export function findFreeSpawnPosition(existingModules, moduleConfig, roofConfig, gridStep = 0.1) {
-  const setback = roofConfig.setback || 0.5;
+  const sb = getRoofSetbacks(roofConfig);
   const dims = getRotatedDimensions(moduleConfig, 0);
 
   // Default to snapped center
@@ -244,8 +331,8 @@ export function findFreeSpawnPosition(existingModules, moduleConfig, roofConfig,
   const stepX = dims.width + 0.1;
   const stepY = dims.height + 0.1;
 
-  for (let y = setback; y <= roofConfig.length - setback - dims.height; y += stepY) {
-    for (let x = setback; x <= roofConfig.width - setback - dims.width; x += stepX) {
+  for (let y = sb.top; y <= roofConfig.length - sb.bottom - dims.height; y += stepY) {
+    for (let x = sb.left; x <= roofConfig.width - sb.right - dims.width; x += stepX) {
       const sx = snapToGrid(x, gridStep);
       const sy = snapToGrid(y, gridStep);
       const b1 = { x: sx, y: sy, right: sx + dims.width, bottom: sy + dims.height };
@@ -264,7 +351,7 @@ export function findFreeSpawnPosition(existingModules, moduleConfig, roofConfig,
 
   // Fallback to top-left setback
   return {
-    x: snapToGrid(setback, gridStep),
-    y: snapToGrid(setback, gridStep)
+    x: snapToGrid(sb.left, gridStep),
+    y: snapToGrid(sb.top, gridStep)
   };
 }
