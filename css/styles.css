@@ -84,43 +84,15 @@ html, body {
    ========================================================================== */
 .app-header {
   height: var(--header-height);
-  background: rgba(11, 15, 25, 0.85);
+  background: rgba(11, 15, 25, 0.88);
   backdrop-filter: var(--glass-blur);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1rem;
-  gap: 0.6rem;
+  padding: 0 1.25rem;
+  gap: 1rem;
   z-index: 30;
-  flex-shrink: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-  -webkit-overflow-scrolling: touch;
-}
-
-.app-header::-webkit-scrollbar {
-  height: 3px;
-}
-
-.app-header::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.app-header::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-}
-
-.app-header::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.brand-section,
-.header-actions,
-.metrics-hud {
   flex-shrink: 0;
 }
 
@@ -128,6 +100,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 0 0 auto;
 }
 
 .brand-logo {
@@ -174,6 +147,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex: 0 0 auto;
 }
 
 .btn-group {
@@ -615,6 +589,56 @@ input:checked + .slider-round:before {
   background-color: #070B14;
 }
 
+/* ==========================================================================
+   Floating Canvas Command Toolbar (CAD / Figma Style)
+   ========================================================================== */
+.canvas-toolbar-floating {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.7), 0 0 1px 1px rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.35rem 0.5rem;
+  user-select: none;
+  max-width: calc(100% - 2rem);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.canvas-toolbar-floating:hover {
+  box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.12);
+}
+
+.canvas-toolbar-floating .btn-group {
+  background: rgba(11, 15, 25, 0.6);
+}
+
+.canvas-toolbar-floating .btn {
+  padding: 0.38rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+.canvas-toolbar-floating .btn-icon-only {
+  padding: 0.38rem;
+}
+
+.canvas-toolbar-floating .divider-v {
+  height: 20px;
+  margin: 0 0.15rem;
+}
+
+.btn-toolbar-primary {
+  padding: 0.38rem 0.8rem !important;
+  font-size: 0.78rem !important;
+}
+
 #roof-canvas-svg {
   width: 100%;
   height: 100%;
@@ -631,8 +655,8 @@ input:checked + .slider-round:before {
 .metrics-hud {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  flex-shrink: 0;
+  gap: 0.4rem;
+  flex: 0 1 auto;
 }
 
 .metric-card {
@@ -1015,25 +1039,32 @@ input:checked + .slider-round:before {
 /* ==========================================================================
    Responsive Adaptations
    ========================================================================== */
-@media (max-width: 1600px) {
+@media (max-width: 1500px) {
   .brand-subtitle {
     display: none;
   }
 }
 
-@media (max-width: 1400px) {
-  .btn-text-responsive {
+@media (max-width: 1280px) {
+  .canvas-toolbar-floating .btn-text-responsive {
     display: none;
   }
-  .divider-v {
-    margin: 0 0.25rem;
+  .canvas-toolbar-floating {
+    padding: 0.3rem 0.4rem;
+    gap: 0.25rem;
+  }
+  .canvas-toolbar-floating .btn {
+    padding: 0.35rem 0.5rem;
   }
   .metric-card {
     padding: 0.15rem 0.35rem;
   }
+  .metric-label {
+    font-size: 0.52rem;
+  }
 }
 
-@media (max-width: 1250px) {
+@media (max-width: 1100px) {
   .metric-card .metric-label {
     display: none;
   }
@@ -1046,9 +1077,6 @@ input:checked + .slider-round:before {
   .brand-badge {
     display: none;
   }
-}
-
-@media (max-width: 1100px) {
   .metric-hide-tablet {
     display: none !important;
   }
@@ -1057,6 +1085,10 @@ input:checked + .slider-round:before {
 @media (max-width: 950px) {
   .metric-hide-mobile {
     display: none !important;
+  }
+  .app-header {
+    padding: 0 0.75rem;
+    gap: 0.5rem;
   }
 }
 
@@ -1078,6 +1110,10 @@ input:checked + .slider-round:before {
   }
   .canvas-viewport {
     height: 58vh;
+  }
+  .canvas-toolbar-floating {
+    top: 0.5rem;
+    padding: 0.25rem 0.35rem;
   }
 }
 
