@@ -188,7 +188,7 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
   const h = (moduleConfig.height || 1762) / 1000;
 
   const walkwayEnabled = !!walkwayConfig?.enabled;
-  const walkwayWidth = walkwayEnabled ? Math.max(0.2, walkwayConfig.width || 0.8) : 0;
+  const walkwayWidth = walkwayEnabled ? Math.max(0.05, walkwayConfig.width !== undefined ? Number(walkwayConfig.width) : 0.1) : 0;
   const walkwayInterval = walkwayEnabled ? Math.max(1, walkwayConfig.interval || 2) : 9999;
   const walkwayDir = walkwayConfig?.direction || 'horizontal';
 

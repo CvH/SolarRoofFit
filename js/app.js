@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=11';
+import { MODULE_PRESETS, ROOF_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=12';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,8 +12,8 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=11';
-import { SvgCanvasManager } from './canvas.js?v=11';
+} from './layout.js?v=12';
+import { SvgCanvasManager } from './canvas.js?v=12';
 
 document.addEventListener('alpine:init', () => {
   Alpine.data('roofPlannerApp', () => ({
@@ -38,7 +38,7 @@ document.addEventListener('alpine:init', () => {
 
     walkway: {
       enabled: false,
-      width: 0.80,          // meters (80cm)
+      width: 0.10,          // meters (starts at 0.1m)
       interval: 2,           // every 2 rows
       direction: 'horizontal', // 'horizontal' | 'vertical' | 'both'
       corridors: []
