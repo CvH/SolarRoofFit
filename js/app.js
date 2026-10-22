@@ -832,7 +832,7 @@ document.addEventListener('alpine:init', () => {
         }
 
         const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-        const filename = `pv_roof_layout_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.svg`;
+        const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.svg`;
         downloadBlob(blob, filename);
         this.showToast('Exported SVG layout blueprint');
       } catch (err) {
@@ -877,13 +877,13 @@ document.addEventListener('alpine:init', () => {
 
             ctx.fillStyle = '#F8FAFC';
             ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
-            ctx.fillText(`RoofPlaner CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m Flat Roof`, 55, 75);
+            ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m Flat Roof`, 55, 75);
 
             ctx.font = '18px Inter, -apple-system, sans-serif';
             ctx.fillStyle = '#94A3B8';
             ctx.fillText(`${this.modules.length} PV Modules | ${this.totalPowerKW} kWp | Coverage: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
 
-            const filename = `pv_roof_plan_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;
+            const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;
 
             if (canvas.toBlob) {
               canvas.toBlob((blob) => {
@@ -940,7 +940,7 @@ document.addEventListener('alpine:init', () => {
         };
 
         const rows = [
-          ['ROOFPLANER SOLAR PV - BILL OF MATERIALS & SYSTEM SPECIFICATION'],
+          ['SOLARROOFFIT - SOLAR PV BILL OF MATERIALS & SYSTEM SPECIFICATION'],
           ['Export Timestamp', new Date().toISOString()],
           [],
           ['ROOF SPECIFICATIONS', 'VALUE', 'UNIT'],
@@ -995,7 +995,7 @@ document.addEventListener('alpine:init', () => {
         // Use UTF-8 Byte Order Mark (BOM) so Excel and spreadsheet apps correctly parse accents and characters
         const csvContent = '\uFEFF' + rows.map(r => r.map(escapeCSV).join(',')).join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const filename = `pv_bill_of_materials_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.csv`;
+        const filename = `solarrooffit_bom_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.csv`;
         downloadBlob(blob, filename);
         this.showToast('Exported Bill of Materials (CSV)');
       } catch (err) {
