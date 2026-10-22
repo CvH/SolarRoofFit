@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid, calculateSmartSnap } from './layout.js?v=12';
+import { snapToGrid, calculateSmartSnap } from './layout.js?v=17';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
