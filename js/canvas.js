@@ -399,5 +399,63 @@ export class SvgCanvasManager {
 
     layer.appendChild(fragment);
   }
+
+  /**
+   * Renders maintenance walk space corridors onto the SVG canvas
+   */
+  renderWalkways(walkways = []) {
+    const layer = this.svg.querySelector('#walkways-layer');
+    if (!layer) return;
+
+    layer.innerHTML = '';
+    if (!walkways || walkways.length === 0) return;
+
+    const fragment = document.createDocumentFragment();
+
+    walkways.forEach(w => {
+      const g = document.createElementNS(SVG_NS, 'g');
+      g.setAttribute('class', 'walkway-group');
+
+      const rect = document.createElementNS(SVG_NS, 'rect');
+      rect.setAttribute('class', 'walkway-corridor');
+      rect.setAttribute('x', w.x.toFixed(4));
+      rect.setAttribute('y', w.y.toFixed(4));
+      rect.setAttribute('width', w.width.toFixed(4));
+      rect.setAttribute('height', w.height.toFixed(4));
+      g.appendChild(rect);
+
+      // Walkway dashed centerline
+      const line = document.createElementNS(SVG_NS, 'line');
+      line.setAttribute('class', 'walkway-centerline');
+      if (w.direction === 'vertical') {
+        const midX = w.x + w.width / 2;
+        line.setAttribute('x1', midX.toFixed(4));
+        line.setAttribute('y1', w.y.toFixed(4));
+        line.setAttribute('x2', midX.toFixed(4));
+        line.setAttribute('y2', (w.y + w.height).toFixed(4));
+      } else {
+        const midY = w.y + w.height / 2;
+        line.setAttribute('x1', w.x.toFixed(4));
+        line.setAttribute('y1', midY.toFixed(4));
+        line.setAttribute('x2', (w.x + w.width).toFixed(4));
+        line.setAttribute('y2', midY.toFixed(4));
+      }
+      g.appendChild(line);
+
+      // Walkway text annotation
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('class', 'walkway-annotation');
+      text.setAttribute('x', (w.x + w.width / 2).toFixed(4));
+      text.setAttribute('y', (w.y + w.height / 2).toFixed(4));
+      const spanDim = w.direction === 'vertical' ? w.width : w.height;
+      text.textContent = `Walk Space (${spanDim.toFixed(2)}m)`;
+      g.appendChild(text);
+
+      fragment.appendChild(g);
+    });
+
+    layer.appendChild(fragment);
+  }
 }
+
 
