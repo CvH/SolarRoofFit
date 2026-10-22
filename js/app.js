@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=21';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=22';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,8 +12,9 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=21';
-import { SvgCanvasManager } from './canvas.js?v=21';
+} from './layout.js?v=22';
+import { SvgCanvasManager } from './canvas.js?v=22';
+import { translate } from './i18n.js?v=22';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -78,9 +79,50 @@ document.addEventListener('alpine:init', () => {
       snapToPanels: true // Magnetic snap to neighbor panels with clamp gap
     },
 
+    lang: 'en', // 'en' | 'de'
     autoFillMode: 'mixed', // 'mixed' | 'same' | 'portrait' | 'landscape'
     autoBestStrategy: 'mixed', // 'mixed' | 'same'
     autoDropdownOpen: false,
+
+    t(key, params = {}) {
+      return translate(this.lang, key, params);
+    },
+
+    getPresetName(preset) {
+      if (!preset) return '';
+      return (this.lang === 'de' && preset.name_de) ? preset.name_de : preset.name;
+    },
+
+    getIntervalLabel(opt) {
+      if (!opt) return '';
+      return (this.lang === 'de' && opt.label_de) ? opt.label_de : opt.label;
+    },
+
+    setLanguage(newLang) {
+      if (newLang !== 'en' && newLang !== 'de') return;
+      this.lang = newLang;
+      try {
+        localStorage.setItem('solarrooffit_lang', newLang);
+      } catch (_) {}
+      document.documentElement.lang = newLang;
+      document.title = this.t('docTitle');
+      this.refreshValidation();
+      this.showToast(newLang === 'de' ? 'Sprache auf Deutsch eingestellt' : 'Language set to English');
+    },
+
+    formatLayoutSummary(summary) {
+      if (!summary) return '';
+      if (this.lang === 'de') {
+        return summary
+          .replace(/landscape/gi, 'Quer')
+          .replace(/portrait/gi, 'Hochkant')
+          .replace(/\(mixed\)/gi, '(gemischt)')
+          .replace(/\(same alignment\)/gi, '(gleiche Ausrichtung)')
+          .replace(/No modules fit/gi, 'Keine Module passen')
+          .replace(/No usable area/gi, 'Keine nutzbare Fläche');
+      }
+      return summary;
+    },
 
     // Placed modules array: { id, x, y, rotation, selected }
     modules: [],
@@ -129,6 +171,21 @@ document.addEventListener('alpine:init', () => {
           this.refreshValidation();
         };
       }
+
+      // Detect and initialize language preference (saved or browser language)
+      try {
+        const savedLang = localStorage.getItem('solarrooffit_lang');
+        if (savedLang === 'en' || savedLang === 'de') {
+          this.lang = savedLang;
+        } else {
+          const userLang = (navigator.language || navigator.userLanguage || '').toLowerCase();
+          this.lang = userLang.startsWith('de') ? 'de' : 'en';
+        }
+      } catch (_) {
+        this.lang = 'en';
+      }
+      document.documentElement.lang = this.lang;
+      document.title = this.t('docTitle');
 
       if (window.location.search.includes('reset=1')) {
         localStorage.removeItem('pv_roof_planner_state');
@@ -332,7 +389,7 @@ document.addEventListener('alpine:init', () => {
         this.module.height = preset.height;
         this.module.power = preset.power;
         this.refreshValidation();
-        this.showToast(`Selected module: ${preset.name}`);
+        this.showToast(this.t('toastSelectedModule', { name: this.getPresetName(preset) }));
       }
     },
 
@@ -341,7 +398,7 @@ document.addEventListener('alpine:init', () => {
       if (this.canvasManager) {
         this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
       }
-      this.saveHistory('Change roof dimensions');
+      this.saveHistory(this.t('historyDimensions'));
     },
 
     selectAutoStrategy(strategy) {
@@ -371,11 +428,11 @@ document.addEventListener('alpine:init', () => {
         this.canvasManager.renderWalkways(this.walkway.corridors);
       }
 
-      const summaryText = result.summary || result.modeUsed;
+      const summaryText = this.formatLayoutSummary(result.summary || result.modeUsed);
       if (recordUndo) {
-        this.saveHistory(`Auto-fill: ${summaryText}`);
+        this.saveHistory(this.t('historyAutoFill', { summary: summaryText }));
       }
-      this.showToast(`Auto-filled ${result.count} modules (${summaryText})`);
+      this.showToast(this.t('toastAutoFilled', { count: result.count, summary: summaryText }));
     },
 
     addModule() {
@@ -393,13 +450,13 @@ document.addEventListener('alpine:init', () => {
       this.modules.push(newMod);
       this.selectedIds = [newMod.id];
       this.refreshValidation();
-      this.saveHistory('Add module');
-      this.showToast('Added 1 PV module');
+      this.saveHistory(this.t('historyAddModule'));
+      this.showToast(this.t('toastAddedModule'));
     },
 
     rotateSelected() {
       if (this.selectedIds.length === 0) {
-        this.showToast('Select one or more modules to rotate', 'info');
+        this.showToast(this.lang === 'de' ? 'Wählen Sie Module zum Drehen aus' : 'Select one or more modules to rotate', 'info');
         return;
       }
 
@@ -419,8 +476,8 @@ document.addEventListener('alpine:init', () => {
       });
 
       this.refreshValidation();
-      this.saveHistory('Rotate module(s)');
-      this.showToast(`Rotated ${this.selectedIds.length} module(s)`);
+      this.saveHistory(this.t('historyRotate'));
+      this.showToast(this.t('toastRotated', { n: this.selectedIds.length }));
     },
 
     duplicateSelected() {
@@ -446,8 +503,8 @@ document.addEventListener('alpine:init', () => {
       this.modules = [...this.modules, ...newItems];
       this.selectedIds = newIds;
       this.refreshValidation();
-      this.saveHistory('Duplicate module(s)');
-      this.showToast(`Duplicated ${newItems.length} module(s)`);
+      this.saveHistory(this.t('historyDuplicate'));
+      this.showToast(this.t('toastDuplicated', { n: newItems.length }));
     },
 
     deleteSelected() {
@@ -456,13 +513,16 @@ document.addEventListener('alpine:init', () => {
       this.modules = this.modules.filter(m => !this.selectedIds.includes(m.id));
       this.selectedIds = [];
       this.refreshValidation();
-      this.saveHistory('Delete module(s)');
-      this.showToast(`Deleted ${count} module(s)`);
+      this.saveHistory(this.t('historyDelete'));
+      this.showToast(this.t('toastDeleted', { n: count }));
     },
 
     clearAll() {
       if (this.modules.length === 0) return;
-      if (confirm(`Remove all ${this.modules.length} PV modules from the roof?`)) {
+      const confirmMsg = this.lang === 'de'
+        ? `Möchten Sie alle ${this.modules.length} PV-Module vom Dach entfernen?`
+        : `Remove all ${this.modules.length} PV modules from the roof?`;
+      if (confirm(confirmMsg)) {
         this.modules = [];
         this.selectedIds = [];
         this.walkway.corridors = [];
@@ -470,14 +530,14 @@ document.addEventListener('alpine:init', () => {
           this.canvasManager.renderWalkways([]);
         }
         this.refreshValidation();
-        this.saveHistory('Clear all modules');
-        this.showToast('Cleared all modules');
+        this.saveHistory(this.t('historyClear'));
+        this.showToast(this.t('toastCleared'));
       }
     },
 
     selectAll() {
       this.selectedIds = this.modules.map(m => m.id);
-      this.showToast(`Selected all ${this.modules.length} modules`);
+      this.showToast(this.t('toastSelectedAll', { n: this.modules.length }));
     },
 
     deselectAll() {
@@ -855,11 +915,11 @@ document.addEventListener('alpine:init', () => {
 
             ctx.fillStyle = '#F8FAFC';
             ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
-            ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m Flat Roof`, 55, 75);
+            ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
 
             ctx.font = '18px Inter, -apple-system, sans-serif';
             ctx.fillStyle = '#94A3B8';
-            ctx.fillText(`${this.modules.length} PV Modules | ${this.totalPowerKW} kWp | Coverage: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
+            ctx.fillText(`${this.modules.length} PV ${this.t('metricModules')} | ${this.totalPowerKW} kWp | ${this.t('metricCoverage')}: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
 
             const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;
 
@@ -876,7 +936,7 @@ document.addEventListener('alpine:init', () => {
                   link.click();
                   setTimeout(() => document.body.removeChild(link), 1000);
                 }
-                this.showToast('Exported high-resolution PNG image');
+                this.showToast(this.t('toastExportPNG'));
               }, 'image/png');
             } else {
               const fallbackData = canvas.toDataURL('image/png');
@@ -886,7 +946,7 @@ document.addEventListener('alpine:init', () => {
               document.body.appendChild(link);
               link.click();
               setTimeout(() => document.body.removeChild(link), 1000);
-              this.showToast('Exported high-resolution PNG image');
+              this.showToast(this.t('toastExportPNG'));
             }
           } catch (canvasErr) {
             console.error('Canvas draw error:', canvasErr);
@@ -917,43 +977,46 @@ document.addEventListener('alpine:init', () => {
           return str;
         };
 
+        const isDe = this.lang === 'de';
         const rows = [
-          ['SOLARROOFFIT - SOLAR PV BILL OF MATERIALS & SYSTEM SPECIFICATION'],
-          ['Export Timestamp', new Date().toISOString()],
+          [isDe ? 'SOLARROOFFIT - SOLAR PV STÜCKLISTE & SYSTEMSPEZIFIKATION' : 'SOLARROOFFIT - SOLAR PV BILL OF MATERIALS & SYSTEM SPECIFICATION'],
+          [isDe ? 'Export-Zeitstempel' : 'Export Timestamp', new Date().toISOString()],
           [],
-          ['ROOF SPECIFICATIONS', 'VALUE', 'UNIT'],
-          ['Roof Width (X)', this.roof.width, 'm'],
-          ['Roof Length (Y)', this.roof.length, 'm'],
-          ['Gross Roof Area', this.roofArea, 'm²'],
-          ['Perimeter Setbacks Linked', this.roof.setbackLinked ? 'Yes' : 'No', ''],
-          ['Perimeter Setback (Top / North)', this.roofSetbackTop, 'm'],
-          ['Perimeter Setback (Bottom / South)', this.roofSetbackBottom, 'm'],
-          ['Perimeter Setback (Left / West)', this.roofSetbackLeft, 'm'],
-          ['Perimeter Setback (Right / East)', this.roofSetbackRight, 'm'],
-          ['Net Usable Solar Area', this.usableArea, 'm²'],
-          ['Maintenance Walkways Enabled', this.walkway.enabled ? 'Yes' : 'No', ''],
-          ['Walkway Corridor Width', this.walkway.enabled ? this.walkway.width : 'N/A', 'm'],
-          ['Walkway Insertion Interval', this.walkway.enabled ? `Every ${this.walkway.interval} rows` : 'N/A', ''],
-          ['Walkway Corridor Direction', this.walkway.enabled ? this.walkway.direction : 'N/A', ''],
+          [isDe ? 'DACHABMESSUNGEN' : 'ROOF SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
+          [isDe ? 'Dachbreite (X)' : 'Roof Width (X)', this.roof.width, 'm'],
+          [isDe ? 'Dachlänge (Y)' : 'Roof Length (Y)', this.roof.length, 'm'],
+          [isDe ? 'Brutto-Dachfläche' : 'Gross Roof Area', this.roofArea, 'm²'],
+          [isDe ? 'Randabstände gekoppelt' : 'Perimeter Setbacks Linked', this.roof.setbackLinked ? (isDe ? 'Ja' : 'Yes') : (isDe ? 'Nein' : 'No'), ''],
+          [isDe ? 'Randabstand (Oben / Nord)' : 'Perimeter Setback (Top / North)', this.roofSetbackTop, 'm'],
+          [isDe ? 'Randabstand (Unten / Süd)' : 'Perimeter Setback (Bottom / South)', this.roofSetbackBottom, 'm'],
+          [isDe ? 'Randabstand (Links / West)' : 'Perimeter Setback (Left / West)', this.roofSetbackLeft, 'm'],
+          [isDe ? 'Randabstand (Rechts / Ost)' : 'Perimeter Setback (Right / East)', this.roofSetbackRight, 'm'],
+          [isDe ? 'Nutzbare Solarfläche' : 'Net Usable Solar Area', this.usableArea, 'm²'],
+          [isDe ? 'Wartungsgänge aktiv' : 'Maintenance Walkways Enabled', this.walkway.enabled ? (isDe ? 'Ja' : 'Yes') : (isDe ? 'Nein' : 'No'), ''],
+          [isDe ? 'Wegbreite' : 'Walkway Corridor Width', this.walkway.enabled ? this.walkway.width : 'N/A', 'm'],
+          [isDe ? 'Intervall' : 'Walkway Insertion Interval', this.walkway.enabled ? (isDe ? `Alle ${this.walkway.interval} Reihen` : `Every ${this.walkway.interval} rows`) : 'N/A', ''],
+          [isDe ? 'Laufrichtung' : 'Walkway Corridor Direction', this.walkway.enabled ? this.walkway.direction : 'N/A', ''],
           [],
-          ['PV MODULE SPECIFICATIONS', 'VALUE', 'UNIT'],
-          ['Module Model Preset', this.modulePresets[this.module.preset]?.name || 'Custom', ''],
-          ['Module Width', this.module.width, 'mm'],
-          ['Module Height / Length', this.module.height, 'mm'],
-          ['Module Peak Power', this.module.power, 'Wp'],
-          ['Inter-Module Clamp Gap X', this.module.gapX, 'mm'],
-          ['Inter-Module Clamp Gap Y', this.module.gapY, 'mm'],
+          [isDe ? 'PV-MODUL SPEZIFIKATIONEN' : 'PV MODULE SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
+          [isDe ? 'Modell-Voreinstellung' : 'Module Model Preset', this.getPresetName(this.modulePresets[this.module.preset]) || 'Custom', ''],
+          [isDe ? 'Modulbreite' : 'Module Width', this.module.width, 'mm'],
+          [isDe ? 'Modullänge / Höhe' : 'Module Height / Length', this.module.height, 'mm'],
+          [isDe ? 'Nennleistung' : 'Module Peak Power', this.module.power, 'Wp'],
+          [isDe ? 'Klemmenabstand X' : 'Inter-Module Clamp Gap X', this.module.gapX, 'mm'],
+          [isDe ? 'Klemmenabstand Y' : 'Inter-Module Clamp Gap Y', this.module.gapY, 'mm'],
           [],
-          ['SYSTEM PERFORMANCE TOTALS', 'VALUE', 'UNIT'],
-          ['Total Modules Placed', this.modules.length, 'pcs'],
-          ['Total System Peak Capacity', this.totalPowerKW, 'kWp'],
-          ['Total Active PV Surface Area', this.pvTotalArea, 'm²'],
-          ['Roof Area Coverage Ratio', this.coveragePercent, '%'],
-          ['Specific Power Density', this.powerDensity, 'Wp/m²'],
-          ['Array Boundary / Spacing Issues', this.issueCount, 'items'],
+          [isDe ? 'SYSTEMLEISTUNG GESAMT' : 'SYSTEM PERFORMANCE TOTALS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
+          [isDe ? 'Anzahl Module' : 'Total Modules Placed', this.modules.length, 'pcs'],
+          [isDe ? 'Gesamte Nennleistung' : 'Total System Peak Capacity', this.totalPowerKW, 'kWp'],
+          [isDe ? 'Aktive Modulfläche' : 'Total Active PV Surface Area', this.pvTotalArea, 'm²'],
+          [isDe ? 'Belegungsgrad' : 'Roof Area Coverage Ratio', this.coveragePercent, '%'],
+          [isDe ? 'Spezifische Leistungsdichte' : 'Specific Power Density', this.powerDensity, 'Wp/m²'],
+          [isDe ? 'Konflikte / Abstandswarnungen' : 'Array Boundary / Spacing Issues', this.issueCount, isDe ? 'Stk.' : 'items'],
           [],
-          ['PLACED MODULE SCHEDULE'],
-          ['#', 'Module ID', 'Position X (m)', 'Position Y (m)', 'Orientation', 'Rotation (deg)', 'Power (Wp)', 'Status']
+          [isDe ? 'BELEGTE MODULE' : 'PLACED MODULE SCHEDULE'],
+          isDe
+            ? ['#', 'Modul-ID', 'Position X (m)', 'Position Y (m)', 'Ausrichtung', 'Drehung (Grad)', 'Leistung (Wp)', 'Status']
+            : ['#', 'Module ID', 'Position X (m)', 'Position Y (m)', 'Orientation', 'Rotation (deg)', 'Power (Wp)', 'Status']
         ];
 
         this.modules.forEach((m, idx) => {
@@ -963,7 +1026,7 @@ document.addEventListener('alpine:init', () => {
             m.id,
             Number(m.x).toFixed(3),
             Number(m.y).toFixed(3),
-            isLandscape ? 'Landscape' : 'Portrait',
+            isLandscape ? (isDe ? 'Quer' : 'Landscape') : (isDe ? 'Hochkant' : 'Portrait'),
             m.rotation,
             this.module.power,
             this.getModuleStatus(m)
@@ -975,7 +1038,7 @@ document.addEventListener('alpine:init', () => {
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const filename = `solarrooffit_bom_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.csv`;
         downloadBlob(blob, filename);
-        this.showToast('Exported Bill of Materials (CSV)');
+        this.showToast(this.t('toastExportBOM'));
       } catch (err) {
         console.error('Failed to export BOM CSV:', err);
         this.showToast('BOM export error: ' + err.message, 'error');

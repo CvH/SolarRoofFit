@@ -13,6 +13,7 @@
 - **🛡️ Setbacks & Walkways**: 4-sided independent safe perimeter margins and configurable maintenance corridors.
 - **📊 Live Metrics**: Real-time module count, system peak power (kWp), roof coverage %, and power density.
 - **💾 Export**: Download vector SVG blueprints, high-resolution PNG renders, and Bill of Materials (CSV).
+- **🌐 Bilingual (EN / DE)**: Instant one-click toggle between English and German with browser language auto-detection.
 
 ## Quick Start
 

@@ -150,6 +150,42 @@ html, body {
   flex: 0 0 auto;
 }
 
+/* Language Switcher in Header */
+.lang-switch-wrap {
+  display: inline-flex;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.lang-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  padding: 0.3rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.lang-btn:hover {
+  color: #FFF;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lang-btn.active {
+  background: var(--brand-blue);
+  color: #FFF;
+  box-shadow: 0 0 10px var(--brand-blue-glow);
+}
+
 .btn-group {
   display: inline-flex;
   background: var(--bg-surface);
