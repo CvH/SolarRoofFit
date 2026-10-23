@@ -205,7 +205,7 @@ export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkw
 
 /**
  * Decomposes a rectangular usable area into disjoint non-overlapping rectangular sub-zones
- * by subtracting obstacles (such as custom maintenance walkways) with safety clamp clearance.
+ * by subtracting custom maintenance walkways with safety clamp clearance.
  *
  * @param {Object} usableRect - { x, y, width, height }
  * @param {Array} customWalkways - Array of walkway objects { x, y, width, height }
@@ -213,7 +213,7 @@ export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkw
  * @param {Number} gapY - Vertical buffer / clamp gap
  * @returns {Array} Array of disjoint rectangular zones { x, y, width, height }
  */
-export function decomposeUsableArea(usableRect, customWalkways = [], obstacles = [], gapX = 0.02, gapY = 0.02) {
+export function decomposeUsableArea(usableRect, customWalkways = [], gapX = 0.02, gapY = 0.02) {
   let zones = [usableRect];
   const EPS = 0.005;
 
@@ -225,17 +225,6 @@ export function decomposeUsableArea(usableRect, customWalkways = [], obstacles =
       oy1: obstacle.y - gapY,
       ox2: obstacle.x + obstacle.width + gapX,
       oy2: obstacle.y + obstacle.height + gapY
-    });
-  }
-
-  for (const obs of (obstacles || [])) {
-    const c = obs.clearance !== undefined ? Number(obs.clearance) : 0.30;
-    const oH = obs.length || obs.height || 1.0;
-    keepOutBoxes.push({
-      ox1: obs.x - c - gapX,
-      oy1: obs.y - c - gapY,
-      ox2: obs.x + obs.width + c + gapX,
-      oy2: obs.y + oH + c + gapY
     });
   }
 
@@ -372,19 +361,19 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     };
   };
 
-  // --- Zone-Partitioned Auto-Fill for Custom Walkways & Obstacles ---
-  // When custom walkways or obstacles divide the roof, partition the usable space into disjoint sub-zones
-  // around each obstacle and pack each zone independently to maximize output and guarantee clean alignment.
-  const hasObstructions = (customWalkways && customWalkways.length > 0) || (obstacles && obstacles.length > 0);
-  if (hasObstructions) {
+  // --- Zone-Partitioned Auto-Fill for Custom Walkways ---
+  // When custom walkways divide the roof into separate corridors/sections,
+  // partition the usable space into disjoint sub-zones and pack each zone independently.
+  const hasCustomWalkways = customWalkways && customWalkways.length > 0;
+  if (hasCustomWalkways) {
     const usableRect = { x: sb.left, y: sb.top, width: usableWidth, height: usableLength };
-    const rawZones = decomposeUsableArea(usableRect, customWalkways, obstacles, gapX, gapY);
+    const rawZones = decomposeUsableArea(usableRect, customWalkways, gapX, gapY);
     const minSide = Math.min(w, h);
     // Filter zones where at least one panel can physically fit
     const zones = rawZones.filter(z => Math.max(z.width, z.height) >= minSide && Math.min(z.width, z.height) >= minSide);
 
     if (zones.length === 0) {
-      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: '0 modules (walkway/obstacle obstruction)' };
+      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: '0 modules (walkway obstruction)' };
     }
 
     // Helper to solve an individual partitioned zone
@@ -527,6 +516,33 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
       });
     });
 
+    // Filter out any modules that intersect obstacles (Skylights & Chimneys keep-out + clearance)
+    if (obstacles && obstacles.length > 0) {
+      allFinalModules = allFinalModules.filter(m => {
+        const dims = getRotatedDimensions(moduleConfig, m.rotation || 0);
+        const mRight = m.x + dims.width;
+        const mBottom = m.y + dims.height;
+        const EPS = 0.005;
+        return !obstacles.some(o => {
+          const c = o.clearance !== undefined ? Number(o.clearance) : 0.30;
+          const oH = o.length || o.height || 1.0;
+          const oLeft = o.x - c;
+          const oTop = o.y - c;
+          const oRight = o.x + o.width + c;
+          const oBottom = o.y + oH + c;
+          const overlapX = Math.min(mRight, oRight) - Math.max(m.x, oLeft);
+          const overlapY = Math.min(mBottom, oBottom) - Math.max(m.y, oTop);
+          return overlapX > EPS && overlapY > EPS;
+        });
+      });
+    }
+
+    portCount = 0;
+    landCount = 0;
+    allFinalModules.forEach(m => {
+      if (m.rotation === 90) landCount++; else portCount++;
+    });
+
     let summaryText = `${allFinalModules.length} modules`;
     if (effectiveMode === 'portrait' || (portCount > 0 && landCount === 0)) {
       summaryText = `${allFinalModules.length} portrait`;
@@ -665,11 +681,26 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
       direction: wk.direction
     }));
 
+    let pCount = 0;
+    let lCount = 0;
+    finalizedModules.forEach(m => {
+      if (m.rotation === 90) lCount++; else pCount++;
+    });
+
+    let summaryText = `${finalizedModules.length} modules`;
+    if (winner.modeUsed === 'portrait' || (pCount > 0 && lCount === 0)) {
+      summaryText = `${finalizedModules.length} portrait`;
+    } else if (winner.modeUsed === 'landscape' || (lCount > 0 && pCount === 0)) {
+      summaryText = `${finalizedModules.length} landscape`;
+    } else {
+      summaryText = `${pCount} portrait + ${lCount} landscape (mixed)`;
+    }
+
     return {
       modules: finalizedModules,
       walkways: finalizedWalkways,
       modeUsed: winner.modeUsed,
-      summary: winner.summary,
+      summary: summaryText,
       count: finalizedModules.length
     };
   };
@@ -684,12 +715,14 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
 
   // If user requested best with same alignment (uniform orientation across all panels)
   if (orientationMode === 'same' || orientationMode === 'uniform') {
-    const bestPure = candPureLandscape.count >= candPurePortrait.count ? candPureLandscape : candPurePortrait;
-    return finalizeCandidate({
-      ...bestPure,
+    const finPort = finalizeCandidate(candPurePortrait);
+    const finLand = finalizeCandidate(candPureLandscape);
+    const bestFin = finLand.count >= finPort.count ? finLand : finPort;
+    return {
+      ...bestFin,
       modeUsed: 'same',
-      summary: `${bestPure.count} ${bestPure.modeUsed} (same alignment)`
-    });
+      summary: `${bestFin.count} ${bestFin.modeUsed} (same alignment)`
+    };
   }
 
   // --- "Auto (Best)" Optimal / Mixed Mode: Explore Pure AND Mixed Orientations ---
@@ -851,19 +884,22 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
   }
 
   // Winner Selection:
-  // Default to the better of the pure orientations
-  let bestCandidate = candPureLandscape.count >= candPurePortrait.count ? candPureLandscape : candPurePortrait;
-  let maxCount = bestCandidate.count;
+  // Default to the better of the pure orientations (evaluated after collision filtering)
+  const finPort = finalizeCandidate(candPurePortrait);
+  const finLand = finalizeCandidate(candPureLandscape);
+  let bestCandidateResult = finLand.count >= finPort.count ? finLand : finPort;
+  let maxCount = bestCandidateResult.count;
 
   // If a mixed orientation achieves strictly more modules, mixed wins!
   for (const cand of candidates) {
-    if (cand.count > maxCount) {
-      maxCount = cand.count;
-      bestCandidate = cand;
+    const fin = finalizeCandidate(cand);
+    if (fin.count > maxCount) {
+      maxCount = fin.count;
+      bestCandidateResult = fin;
     }
   }
 
-  return finalizeCandidate(bestCandidate);
+  return bestCandidateResult;
 }
 
 /**
