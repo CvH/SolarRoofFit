@@ -131,18 +131,6 @@ html, body {
   gap: 0.5rem;
 }
 
-.brand-badge {
-  font-size: 0.65rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  background: rgba(37, 99, 235, 0.08);
-  color: #2563EB;
-  border: 1px solid rgba(37, 99, 235, 0.2);
-  padding: 0.15rem 0.4rem;
-  border-radius: 4px;
-}
-
 .brand-subtitle {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -1387,16 +1375,6 @@ input:checked + .slider-round:before {
   letter-spacing: 0.02em;
 }
 
-.grid-line-major {
-  stroke: rgba(15, 23, 42, 0.12);
-  stroke-width: 0.015;
-}
-
-.grid-line-minor {
-  stroke: rgba(15, 23, 42, 0.05);
-  stroke-width: 0.008;
-}
-
 /* Dimension Annotation Guides */
 .dim-line {
   stroke: #475569;
@@ -1559,9 +1537,6 @@ input:checked + .slider-round:before {
   }
   .brand-title-wrap h1 {
     font-size: 1rem;
-  }
-  .brand-badge {
-    display: none;
   }
   .metric-hide-tablet {
     display: none !important;

@@ -7,7 +7,6 @@ export const TRANSLATIONS = {
   en: {
     // Document
     docTitle: "SolarRoofFit — Solar PV Flat Roof Planner & Simulator",
-    docDesc: "SolarRoofFit: Interactive solar PV flat roof planning simulator. Customize roof dimensions, module sizes, rotate panels, auto-fill optimal layouts, and snap to raster grids.",
 
     // Brand
     brandSubtitle: "Flat Roof Photovoltaic Array Simulator",
@@ -163,8 +162,7 @@ export const TRANSLATIONS = {
     historyRotateObstacle: "Rotate obstacle",
     historyUpdateObstacle: "Update obstacle properties",
     historyClearObstacles: "Clear all obstacles",
-    customSizeHint: "Standard sizes: 0.30 m – 2.50 m (step 0.05m)",
-
+ 
     btnAutoMixed: "Auto (Mixed)",
     btnAutoSame: "Auto (Same)",
     autoMixedTitle: "Calculate best layout with mixed horizontal & vertical panels for max output",
@@ -177,15 +175,11 @@ export const TRANSLATIONS = {
     strategySameTitle: "Same Alignment",
     strategySameBadge: "Uniform Rails",
     strategySameDesc: "All panels face the same direction (chooses best pure portrait vs landscape)",
-    btnPortrait: "Portrait",
     btnPortraitTitle: "Fill roof with portrait-aligned modules",
-    btnLandscape: "Landscape",
     btnLandscapeTitle: "Fill roof with landscape-aligned modules",
     btnRotate: "Rotate (R)",
     btnRotateTitle: "Rotate Selected Module 90° (Hotkey: R)",
-    btnDuplicate: "Duplicate",
     btnDuplicateTitle: "Duplicate Selected (Ctrl+D)",
-    btnDelete: "Delete",
     btnDeleteTitle: "Delete Selected (Del/Backspace)",
     btnUndoTitle: "Undo (Ctrl+Z)",
     btnRedoTitle: "Redo (Ctrl+Y)",
@@ -205,19 +199,6 @@ export const TRANSLATIONS = {
     hintFree: "Free (No Snap)",
     hintMulti: "Multi-select",
     hintZoom: "Zoom & Pan",
-
-    // Preset Options
-    intervalOpt1: "Every 1 Row (Frequent)",
-    intervalOpt2: "Every 2 Rows (Standard)",
-    intervalOpt3: "Every 3 Rows",
-    intervalOpt4: "Every 4 Rows (High Density)",
-
-    // Module presets names
-    modStandard: "Standard Residential (430 Wp)",
-    modHighPower: "High Efficiency N-Type (450 Wp)",
-    modCommercial: "Commercial Heavy (550 Wp)",
-    modCompact: "Compact / Balcony (380 Wp)",
-    modCustom: "Custom Module",
 
     // Toasts & Messages
     toastAddedModule: "Added 1 PV module",
@@ -252,7 +233,6 @@ export const TRANSLATIONS = {
   de: {
     // Document
     docTitle: "SolarRoofFit — Flachdach Photovoltaik Planer & Simulator",
-    docDesc: "SolarRoofFit: Interaktiver CAD-Simulator zur PV-Flachdachbelegung. Dachmaße anpassen, Module drehen, automatische Belegungsoptimierung und präzises Einrasten.",
 
     // Brand
     brandSubtitle: "Flachdach-Photovoltaik Planer & Simulator",
@@ -408,7 +388,6 @@ export const TRANSLATIONS = {
     historyRotateObstacle: "Aufbau gedreht",
     historyUpdateObstacle: "Aufbau angepasst",
     historyClearObstacles: "Alle Aufbauten gelöscht",
-    customSizeHint: "Größen: 0,30 – 2,50 m (Schritt 0,05 m)",
 
     btnAutoMixed: "Auto (Gemischt)",
     btnAutoSame: "Auto (Gleich)",
@@ -422,15 +401,11 @@ export const TRANSLATIONS = {
     strategySameTitle: "Einheitlich",
     strategySameBadge: "Gleiche Schienen",
     strategySameDesc: "Alle Module in gleicher Richtung",
-    btnPortrait: "Hochkant",
     btnPortraitTitle: "Mit Hochkantmodulen belegen",
-    btnLandscape: "Quer",
     btnLandscapeTitle: "Mit Quermodulen belegen",
     btnRotate: "Drehen (R)",
     btnRotateTitle: "Modul 90° drehen (R)",
-    btnDuplicate: "Duplizieren",
     btnDuplicateTitle: "Duplizieren (Strg+D)",
-    btnDelete: "Löschen",
     btnDeleteTitle: "Löschen (Entf)",
     btnUndoTitle: "Rückgängig (Strg+Z)",
     btnRedoTitle: "Wiederholen (Strg+Y)",
@@ -450,19 +425,6 @@ export const TRANSLATIONS = {
     hintFree: "Frei (kein Fang)",
     hintMulti: "Mehrfach",
     hintZoom: "Zoom & Pan",
-
-    // Preset Options
-    intervalOpt1: "Jede Reihe",
-    intervalOpt2: "Alle 2 Reihen",
-    intervalOpt3: "Alle 3 Reihen",
-    intervalOpt4: "Alle 4 Reihen",
-
-    // Module presets names
-    modStandard: "Standard (430 Wp)",
-    modHighPower: "High-Power (450 Wp)",
-    modCommercial: "Gewerbe (550 Wp)",
-    modCompact: "Kompakt (380 Wp)",
-    modCustom: "Individuell",
 
     // Toasts & Messages
     toastAddedModule: "1 Modul hinzugefügt",

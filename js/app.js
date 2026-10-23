@@ -6,17 +6,15 @@ import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS, SKYLIGHT_PRES
 import {
   snapToGrid,
   getRotatedDimensions,
-  getModuleBounds,
   getRoofSetbacks,
   evaluateModuleBoundary,
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition,
-  findFreeObstaclePosition,
-  calculateObstacleSnap
-} from './layout.js?v=26';
-import { SvgCanvasManager } from './canvas.js?v=31';
-import { translate } from './i18n.js?v=35';
+  findFreeObstaclePosition
+} from './layout.js?v=27';
+import { SvgCanvasManager } from './canvas.js?v=32';
+import { translate } from './i18n.js?v=36';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -217,7 +215,7 @@ document.addEventListener('alpine:init', () => {
         );
 
         this.canvasManager.onDragComplete = () => {
-          this.saveHistory('Move module(s)');
+          this.saveHistory(this.t('historyMove'));
           this.refreshValidation();
         };
       }
@@ -314,7 +312,7 @@ document.addEventListener('alpine:init', () => {
         this.renderObstacles();
       });
 
-      this.saveHistory('Initial State');
+      this.saveHistory(this.t('historyInitial'));
     },
 
     // --- Validation, Collisions & Visual Sync ---
@@ -366,10 +364,6 @@ document.addEventListener('alpine:init', () => {
         return 'collision';
       }
       return evaluateModuleBoundary(mod, this.module, this.roof);
-    },
-
-    getModuleDims(mod) {
-      return getRotatedDimensions(this.module, mod.rotation || 0);
     },
 
     // --- 4-Sided Setback Computed Getters ---
@@ -2139,7 +2133,7 @@ document.addEventListener('alpine:init', () => {
 
               ctx.fillStyle = '#F8FAFC';
               ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
-              ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
+              ctx.fillText(`${this.t('exportCADTitle')}: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
 
               ctx.font = '18px Inter, -apple-system, sans-serif';
               ctx.fillStyle = '#94A3B8';
@@ -2205,7 +2199,7 @@ document.addEventListener('alpine:init', () => {
 
         const isDe = this.lang === 'de';
         const rows = [
-          [isDe ? 'SOLARROOFFIT - SOLAR PV STÜCKLISTE & SYSTEMSPEZIFIKATION' : 'SOLARROOFFIT - SOLAR PV BILL OF MATERIALS & SYSTEM SPECIFICATION'],
+          [this.t('exportBOMHeader')],
           [isDe ? 'Export-Zeitstempel' : 'Export Timestamp', new Date().toISOString()],
           [],
           [isDe ? 'DACHMASSE' : 'ROOF SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
