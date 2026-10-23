@@ -34,8 +34,38 @@
   <!-- Application Modules & Alpine.js -->
   <script type="module" src="js/app.js?v=36"></script>
   <script defer src="js/vendor/alpine.min.js"></script>
+  <!-- Global Error Boundary & Crash Recovery -->
+  <script>
+    window.addEventListener('error', function(e) {
+      if (e.message && (e.message.includes('ResizeObserver') || e.message.includes('Script error.'))) return;
+      var banner = document.getElementById('app-crash-banner');
+      if (banner) {
+        banner.style.display = 'flex';
+        var msg = document.getElementById('app-crash-msg');
+        if (msg && e.message) msg.textContent = e.message;
+      }
+    });
+  </script>
 </head>
 <body x-data="roofPlannerApp">
+  <!-- Top Crash Recovery Notification (Standalone fallback) -->
+  <div id="app-crash-banner" class="app-crash-banner" role="alert">
+    <div class="crash-banner-content">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div>
+        <strong>Application Notice:</strong> <span id="app-crash-msg">A script error was detected.</span>
+      </div>
+    </div>
+    <div class="crash-banner-actions">
+      <button type="button" class="btn-crash-reset" onclick="localStorage.removeItem('pv_roof_planner_state'); location.href = location.pathname + '?reset=1';">
+        Reset to Defaults
+      </button>
+      <button type="button" class="btn-crash-dismiss" onclick="document.getElementById('app-crash-banner').style.display='none';">
+        ✕
+      </button>
+    </div>
+  </div>
+
   <div id="app-root">
 
     <!-- Dedicated Architectural Print Header (Visible during printing / PDF export) -->

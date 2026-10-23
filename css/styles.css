@@ -1884,5 +1884,80 @@ input:checked + .slider-round:before {
   }
 }
 
+/* ====================================================================
+   Global Error Boundary & Crash Recovery Banner
+   ==================================================================== */
+.app-crash-banner {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 99999;
+  background: #FEF2F2;
+  border-bottom: 2px solid #EF4444;
+  color: #991B1B;
+  padding: 0.65rem 1.25rem;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.84rem;
+  animation: slideDownCrash 0.2s ease-out;
+}
+
+@keyframes slideDownCrash {
+  from { transform: translateY(-100%); }
+  to { transform: translateY(0); }
+}
+
+.crash-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.crash-banner-content svg {
+  flex-shrink: 0;
+  stroke: #DC2626;
+}
+
+.crash-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-crash-reset {
+  background: #DC2626;
+  color: #FFFFFF;
+  border: none;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-crash-reset:hover {
+  background: #B91C1C;
+}
+
+.btn-crash-dismiss {
+  background: transparent;
+  color: #991B1B;
+  border: none;
+  font-size: 1rem;
+  padding: 0.25rem 0.5rem;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.btn-crash-dismiss:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+
 
 
