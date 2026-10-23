@@ -16,10 +16,10 @@
   <link rel="alternate icon" href="favicon.ico">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=30">
+  <link rel="stylesheet" href="css/styles.css?v=31">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=29"></script>
+  <script type="module" src="js/app.js?v=31"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -676,7 +676,10 @@
             </g>
           </g>
 
-          <!-- Walkways Layer (Maintenance Corridors) -->
+          <!-- Modules Placement Layer (dynamically rendered for high performance and compatibility) -->
+          <g id="modules-layer"></g>
+
+          <!-- Walkways Layer (Maintenance Corridors, rendered above PV modules) -->
           <g id="walkways-layer"></g>
 
           <!-- Magnetic Snap CAD Guides Layer -->
@@ -684,9 +687,6 @@
 
           <!-- Drawing Preview Layer for Walkways and Shapes -->
           <g id="drawing-preview-layer" style="pointer-events: none;"></g>
-
-          <!-- Modules Placement Layer (dynamically rendered for high performance and compatibility) -->
-          <g id="modules-layer"></g>
         </svg>
 
         <!-- Floating Viewport Controls (Bottom Right) -->

@@ -673,6 +673,14 @@ export class SvgCanvasManager {
       lastSnappedPos: { x: walkwayItem.x, y: walkwayItem.y }
     };
 
+    const gEl = this.svg.querySelector(`g.custom-walkway[data-walkway-id="${walkwayItem.id}"]`);
+    if (gEl) {
+      gEl.classList.add('dragging');
+      if (gEl.parentElement) {
+        gEl.parentElement.appendChild(gEl);
+      }
+    }
+
     try {
       this.svg.setPointerCapture(event.pointerId);
     } catch (_) {}
@@ -748,6 +756,11 @@ export class SvgCanvasManager {
     const walkwayId = this.walkwayDragState.walkwayId;
     const finalPos = this.walkwayDragState.lastSnappedPos;
     this.walkwayDragState = null;
+
+    const gEl = this.svg.querySelector(`g.custom-walkway[data-walkway-id="${walkwayId}"]`);
+    if (gEl) {
+      gEl.classList.remove('dragging');
+    }
 
     if (hasMoved && this.walkwayCallbacks && this.walkwayCallbacks.onWalkwayMoveEnd) {
       this.walkwayCallbacks.onWalkwayMoveEnd(walkwayId, finalPos.x, finalPos.y);

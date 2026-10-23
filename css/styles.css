@@ -1078,8 +1078,13 @@ input:checked + .slider-round:before {
   cursor: grab;
 }
 
-.walkway-group.custom-walkway:active {
-  cursor: grabbing;
+.auto-walkway {
+  pointer-events: none;
+}
+
+.walkway-group.custom-walkway:active,
+.walkway-group.custom-walkway.dragging {
+  cursor: grabbing !important;
 }
 
 .walkway-corridor {
@@ -1090,15 +1095,15 @@ input:checked + .slider-round:before {
 }
 
 .walkway-corridor.custom-corridor {
-  fill: rgba(254, 243, 199, 0.6);
+  fill: rgba(254, 243, 199, 0.85);
   stroke: #D97706;
-  stroke-width: 0.02;
+  stroke-width: 0.025;
   stroke-dasharray: none;
   transition: fill 0.15s ease, stroke 0.15s ease;
 }
 
 .walkway-group.custom-walkway:hover .custom-corridor {
-  fill: rgba(254, 243, 199, 0.9);
+  fill: rgba(254, 243, 199, 0.95);
   stroke: #B45309;
 }
 
@@ -1107,6 +1112,13 @@ input:checked + .slider-round:before {
   stroke: #D97706;
   stroke-width: 0.035;
   filter: drop-shadow(0 0 0.05 rgba(217, 119, 6, 0.5));
+}
+
+.walkway-group.custom-walkway.dragging .custom-corridor {
+  fill: rgba(253, 230, 138, 0.98);
+  stroke: #D97706;
+  stroke-width: 0.04;
+  filter: drop-shadow(0 2px 8px rgba(217, 119, 6, 0.6));
 }
 
 .walkway-border-line {

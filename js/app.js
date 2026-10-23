@@ -13,7 +13,7 @@ import {
   calculateAutoFill,
   findFreeSpawnPosition
 } from './layout.js?v=26';
-import { SvgCanvasManager } from './canvas.js?v=26';
+import { SvgCanvasManager } from './canvas.js?v=31';
 import { translate } from './i18n.js?v=29';
 
 /**
