@@ -711,6 +711,11 @@ input:checked + .slider-round:before {
 
 .canvas-toolbar-floating .btn-icon-only {
   padding: 0.38rem;
+  min-width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .canvas-toolbar-floating .divider-v {
