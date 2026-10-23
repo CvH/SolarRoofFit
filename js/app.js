@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=33';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS, SKYLIGHT_PRESETS, CHIMNEY_PRESETS } from './presets.js?v=33';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -11,7 +11,9 @@ import {
   evaluateModuleBoundary,
   detectCollisions,
   calculateAutoFill,
-  findFreeSpawnPosition
+  findFreeSpawnPosition,
+  findFreeObstaclePosition,
+  calculateObstacleSnap
 } from './layout.js?v=26';
 import { SvgCanvasManager } from './canvas.js?v=31';
 import { translate } from './i18n.js?v=34';
@@ -71,6 +73,26 @@ document.addEventListener('alpine:init', () => {
       id: null,
       width: 0.80,
       direction: 'vertical'
+    },
+
+    // Roof Obstacles (Skylights & Chimneys)
+    skylightPresets: SKYLIGHT_PRESETS,
+    chimneyPresets: CHIMNEY_PRESETS,
+    obstacles: [],
+    selectedObstacleId: null,
+    obstacleTab: 'skylight', // 'skylight' | 'chimney'
+    selectedObstaclePreset: 'dome_100_100',
+    obstacleClearance: 0.30, // meters safety keep-out buffer
+    obstacleCustomWidth: 1.00, // meters (0.30 - 2.50m)
+    obstacleCustomLength: 1.00, // meters (0.30 - 2.50m)
+    obstacleEditModal: {
+      open: false,
+      id: null,
+      type: 'skylight',
+      preset: 'dome_100_100',
+      width: 1.00,
+      length: 1.00,
+      clearance: 0.30
     },
 
     exportModal: {
@@ -177,7 +199,9 @@ document.addEventListener('alpine:init', () => {
             module: this.module,
             walkway: this.walkway,
             activeTool: this.activeTool,
-            selectedWalkwayId: this.selectedWalkwayId
+            selectedWalkwayId: this.selectedWalkwayId,
+            obstacles: this.obstacles,
+            selectedObstacleId: this.selectedObstacleId
           }),
           (newState) => {
             if (newState.modules) {
@@ -226,6 +250,9 @@ document.addEventListener('alpine:init', () => {
           if (parsed.walkway) this.walkway = { ...this.walkway, ...parsed.walkway };
           if (parsed.autoBestStrategy) this.autoBestStrategy = parsed.autoBestStrategy;
           if (parsed.autoFillMode) this.autoFillMode = parsed.autoFillMode;
+          if (Array.isArray(parsed.obstacles)) {
+            this.obstacles = parsed.obstacles;
+          }
           if (Array.isArray(parsed.modules) && parsed.modules.length > 0) {
             this.modules = parsed.modules;
           } else {
@@ -247,6 +274,7 @@ document.addEventListener('alpine:init', () => {
           this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
           this.renderCanvasModules();
           this.renderWalkways();
+          this.renderObstacles();
         }
       });
 
@@ -264,15 +292,28 @@ document.addEventListener('alpine:init', () => {
       this.$watch('grid', () => this.persistState());
       this.$watch('walkway', () => this.persistState());
       this.$watch('autoBestStrategy', () => this.persistState());
+      this.$watch('obstacles', () => {
+        this.persistState();
+        this.renderObstacles();
+      });
+      this.$watch('selectedObstacleId', () => {
+        this.renderObstacles();
+      });
 
       this.saveHistory('Initial State');
     },
 
     // --- Validation, Collisions & Visual Sync ---
     refreshValidation() {
-      this.collidingIds = detectCollisions(this.modules, this.module, this.walkway.customCorridors || []);
+      this.collidingIds = detectCollisions(
+        this.modules,
+        this.module,
+        this.walkway.customCorridors || [],
+        this.obstacles || []
+      );
       this.renderCanvasModules();
       this.renderWalkways();
+      this.renderObstacles();
     },
 
     renderWalkways() {
@@ -469,7 +510,8 @@ document.addEventListener('alpine:init', () => {
         mode,
         step,
         this.walkway,
-        this.walkway.customCorridors || []
+        this.walkway.customCorridors || [],
+        this.obstacles || []
       );
 
       this.modules = result.modules;
@@ -505,6 +547,26 @@ document.addEventListener('alpine:init', () => {
     },
 
     rotateSelected() {
+      if (this.selectedObstacleId) {
+        const obs = (this.obstacles || []).find(o => o.id === this.selectedObstacleId);
+        if (obs) {
+          const oldW = obs.width;
+          obs.width = obs.length;
+          obs.length = oldW;
+          obs.rotation = ((obs.rotation || 0) + 90) % 360;
+          // Ensure within roof
+          const maxX = Math.max(0, this.roof.width - obs.width);
+          const maxY = Math.max(0, this.roof.length - obs.length);
+          obs.x = Math.max(0, Math.min(obs.x, maxX));
+          obs.y = Math.max(0, Math.min(obs.y, maxY));
+          this.refreshValidation();
+          this.runAutoFill(this.autoFillMode, false);
+          this.saveHistory(this.t('historyRotateObstacle'));
+          this.showToast(this.t('historyRotateObstacle'));
+        }
+        return;
+      }
+
       if (this.selectedWalkwayId) {
         const wk = (this.walkway.customCorridors || []).find(w => w.id === this.selectedWalkwayId);
         if (wk) {
@@ -545,6 +607,28 @@ document.addEventListener('alpine:init', () => {
     },
 
     duplicateSelected() {
+      if (this.selectedObstacleId) {
+        const obs = (this.obstacles || []).find(o => o.id === this.selectedObstacleId);
+        if (obs) {
+          const offset = this.grid.enabled ? Math.max(this.grid.step, 0.25) : 0.25;
+          const dup = {
+            ...obs,
+            id: 'obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+            x: Math.max(0, Math.min(obs.x + offset, Math.max(0, this.roof.width - obs.width))),
+            y: Math.max(0, Math.min(obs.y + offset, Math.max(0, this.roof.length - obs.length)))
+          };
+          this.obstacles = [...this.obstacles, dup];
+          this.selectedObstacleId = dup.id;
+          this.selectedIds = [];
+          this.selectedWalkwayId = null;
+          this.refreshValidation();
+          this.runAutoFill(this.autoFillMode, false);
+          this.saveHistory(this.t('historyAddObstacle'));
+          this.showToast(this.t('toastObstacleAdded', { name: dup.name }));
+        }
+        return;
+      }
+
       if (this.selectedIds.length === 0) return;
 
       const offset = this.grid.enabled ? Math.max(this.grid.step, 0.2) : 0.2;
@@ -572,6 +656,16 @@ document.addEventListener('alpine:init', () => {
     },
 
     deleteSelected() {
+      if (this.selectedObstacleId) {
+        this.obstacles = (this.obstacles || []).filter(o => o.id !== this.selectedObstacleId);
+        this.selectedObstacleId = null;
+        this.refreshValidation();
+        this.runAutoFill(this.autoFillMode, false);
+        this.saveHistory(this.t('historyDeleteObstacle'));
+        this.showToast(this.t('toastObstacleDeleted'));
+        return;
+      }
+
       if (this.selectedWalkwayId) {
         this.walkway.customCorridors = (this.walkway.customCorridors || []).filter(w => w.id !== this.selectedWalkwayId);
         this.selectedWalkwayId = null;
@@ -709,6 +803,194 @@ document.addEventListener('alpine:init', () => {
       this.walkwayEditModal.open = false;
     },
 
+    // --- Roof Obstacle Operations (Skylights & Chimneys) ---
+    renderObstacles() {
+      if (!this.canvasManager) return;
+      this.canvasManager.renderObstacles(
+        this.obstacles || [],
+        this.selectedObstacleId,
+        {
+          onObstacleSelect: (id) => this.selectObstacle(id),
+          onObstacleDblClick: (id) => this.openEditObstacleModal(id),
+          onObstacleMoveEnd: (id, x, y) => this.onObstacleMoveEnd(id, x, y),
+          onBackgroundClick: () => {
+            if (this.selectedObstacleId) {
+              this.selectedObstacleId = null;
+              this.renderObstacles();
+            }
+          }
+        }
+      );
+    },
+
+    selectObstacle(id) {
+      this.selectedObstacleId = id;
+      this.selectedIds = [];
+      this.selectedWalkwayId = null;
+      this.renderCanvasModules();
+      this.renderWalkways();
+      this.renderObstacles();
+    },
+
+    onObstacleMoveEnd(id, newX, newY) {
+      const obs = (this.obstacles || []).find(o => o.id === id);
+      if (obs) {
+        obs.x = Number(newX.toFixed(4));
+        obs.y = Number(newY.toFixed(4));
+        this.refreshValidation();
+        this.runAutoFill(this.autoFillMode, false);
+        this.saveHistory(this.t('historyMoveObstacle'));
+      }
+    },
+
+    onObstaclePresetChange(isModal = false) {
+      const target = isModal ? this.obstacleEditModal : this;
+      const type = isModal ? target.type : this.obstacleTab;
+      const presetKey = isModal ? target.preset : this.selectedObstaclePreset;
+      const catalog = type === 'skylight' ? this.skylightPresets : this.chimneyPresets;
+      const p = catalog ? catalog[presetKey] : null;
+      if (p && presetKey !== 'custom') {
+        if (isModal) {
+          target.width = Number(p.width.toFixed(2));
+          target.length = Number(p.length.toFixed(2));
+        } else {
+          this.obstacleCustomWidth = Number(p.width.toFixed(2));
+          this.obstacleCustomLength = Number(p.length.toFixed(2));
+        }
+      }
+    },
+
+    addObstacle(forcedType = null) {
+      const type = forcedType || this.obstacleTab || 'skylight';
+      let presetKey = this.selectedObstaclePreset;
+      if (forcedType && forcedType !== this.obstacleTab) {
+        this.obstacleTab = forcedType;
+        presetKey = forcedType === 'skylight' ? 'dome_100_100' : 'single_40_40';
+        this.selectedObstaclePreset = presetKey;
+      }
+      const catalog = type === 'skylight' ? this.skylightPresets : this.chimneyPresets;
+      const presetObj = catalog ? catalog[presetKey] : null;
+
+      let w = Number(this.obstacleCustomWidth) || 1.0;
+      let l = Number(this.obstacleCustomLength) || 1.0;
+      if (presetObj && presetKey !== 'custom') {
+        w = presetObj.width;
+        l = presetObj.length;
+      }
+      // Strict clamping to realistic common sizes: 0.30m to 2.50m
+      w = Math.max(0.30, Math.min(2.50, Number(w.toFixed(2))));
+      l = Math.max(0.30, Math.min(2.50, Number(l.toFixed(2))));
+
+      const clr = Math.max(0.0, Math.min(1.50, Number(this.obstacleClearance !== undefined ? this.obstacleClearance : 0.30)));
+      const step = this.grid.enabled ? this.grid.step : 0.25;
+      const pos = findFreeObstaclePosition(this.obstacles, w, l, this.roof, step);
+
+      const name = presetObj ? (this.lang === 'de' ? (presetObj.name_de || presetObj.name) : presetObj.name) : (type === 'skylight' ? 'Skylight' : 'Chimney');
+      const newObs = {
+        id: 'obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        type,
+        preset: presetKey,
+        name,
+        width: w,
+        length: l,
+        clearance: clr,
+        x: pos.x,
+        y: pos.y,
+        rotation: 0
+      };
+
+      if (!this.obstacles) this.obstacles = [];
+      this.obstacles.push(newObs);
+      this.selectedObstacleId = newObs.id;
+      this.selectedIds = [];
+      this.selectedWalkwayId = null;
+
+      this.refreshValidation();
+      this.runAutoFill(this.autoFillMode, false);
+      this.saveHistory(this.t('historyAddObstacle'));
+      this.showToast(this.t('toastObstacleAdded', { name }));
+    },
+
+    deleteObstacle(id) {
+      this.obstacles = (this.obstacles || []).filter(o => o.id !== id);
+      if (this.selectedObstacleId === id) {
+        this.selectedObstacleId = null;
+      }
+      this.refreshValidation();
+      this.runAutoFill(this.autoFillMode, false);
+      this.saveHistory(this.t('historyDeleteObstacle'));
+      this.showToast(this.t('toastObstacleDeleted'));
+    },
+
+    clearAllObstacles() {
+      if (!this.obstacles || this.obstacles.length === 0) return;
+      this.obstacles = [];
+      this.selectedObstacleId = null;
+      this.refreshValidation();
+      this.runAutoFill(this.autoFillMode, false);
+      this.saveHistory(this.t('historyClearObstacles'));
+      this.showToast(this.t('toastObstaclesCleared'));
+    },
+
+    openEditObstacleModal(id) {
+      const obs = (this.obstacles || []).find(o => o.id === id);
+      if (!obs) return;
+      this.obstacleEditModal = {
+        open: true,
+        id: obs.id,
+        type: obs.type,
+        preset: obs.preset || 'custom',
+        width: Number(obs.width.toFixed(2)),
+        length: Number(obs.length.toFixed(2)),
+        clearance: Number((obs.clearance !== undefined ? obs.clearance : 0.30).toFixed(2))
+      };
+      this.selectObstacle(id);
+    },
+
+    closeObstacleEditModal() {
+      this.obstacleEditModal.open = false;
+    },
+
+    rotateObstacleInModal() {
+      const oldW = this.obstacleEditModal.width;
+      this.obstacleEditModal.width = this.obstacleEditModal.length;
+      this.obstacleEditModal.length = oldW;
+    },
+
+    applyObstacleEdit() {
+      const id = this.obstacleEditModal.id;
+      const obs = (this.obstacles || []).find(o => o.id === id);
+      if (obs) {
+        const w = Math.max(0.30, Math.min(2.50, Number(this.obstacleEditModal.width) || 1.0));
+        const l = Math.max(0.30, Math.min(2.50, Number(this.obstacleEditModal.length) || 1.0));
+        const clr = Math.max(0.0, Math.min(1.50, Number(this.obstacleEditModal.clearance) !== undefined ? Number(this.obstacleEditModal.clearance) : 0.30));
+
+        obs.type = this.obstacleEditModal.type;
+        obs.preset = this.obstacleEditModal.preset;
+        obs.width = Number(w.toFixed(2));
+        obs.length = Number(l.toFixed(2));
+        obs.clearance = Number(clr.toFixed(2));
+
+        const catalog = obs.type === 'skylight' ? this.skylightPresets : this.chimneyPresets;
+        const p = catalog ? catalog[obs.preset] : null;
+        if (p && obs.preset !== 'custom') {
+          obs.name = this.lang === 'de' ? (p.name_de || p.name) : p.name;
+        }
+
+        // Clamp inside roof
+        const maxX = Math.max(0, this.roof.width - obs.width);
+        const maxY = Math.max(0, this.roof.length - obs.length);
+        obs.x = Math.max(0, Math.min(obs.x, maxX));
+        obs.y = Math.max(0, Math.min(obs.y, maxY));
+
+        this.refreshValidation();
+        this.runAutoFill(this.autoFillMode, false);
+        this.saveHistory(this.t('historyUpdateObstacle'));
+        this.showToast(this.t('toastObstacleUpdated'));
+      }
+      this.obstacleEditModal.open = false;
+    },
+
     openExportModal(format = 'svg') {
       this.exportModal.format = format;
       this.exportModal.open = true;
@@ -762,6 +1044,9 @@ document.addEventListener('alpine:init', () => {
         corridors: [],
         customCorridors: []
       };
+
+      this.obstacles = [];
+      this.selectedObstacleId = null;
 
       this.module = {
         width: 1134,
@@ -873,7 +1158,8 @@ document.addEventListener('alpine:init', () => {
         modules: this.modules,
         roof: this.roof,
         module: this.module,
-        walkway: this.walkway
+        walkway: this.walkway,
+        obstacles: this.obstacles
       });
 
       // Truncate forward history if branching
@@ -899,7 +1185,12 @@ document.addEventListener('alpine:init', () => {
             this.canvasManager.renderWalkways(this.walkway.corridors || []);
           }
         }
+        if (state.obstacles) {
+          this.obstacles = state.obstacles;
+          this.renderObstacles();
+        }
         this.selectedIds = [];
+        this.selectedObstacleId = null;
         this.refreshValidation();
         this.showToast(`Undo: ${this.history[this.historyIndex].name}`);
       }
@@ -918,7 +1209,12 @@ document.addEventListener('alpine:init', () => {
             this.canvasManager.renderWalkways(this.walkway.corridors || []);
           }
         }
+        if (state.obstacles) {
+          this.obstacles = state.obstacles;
+          this.renderObstacles();
+        }
         this.selectedIds = [];
+        this.selectedObstacleId = null;
         this.refreshValidation();
         this.showToast(`Redo: ${this.history[this.historyIndex].name}`);
       }
@@ -936,7 +1232,7 @@ document.addEventListener('alpine:init', () => {
           e.preventDefault();
           this.rotateSelected();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (this.selectedIds.length > 0 || this.selectedWalkwayId) {
+          if (this.selectedIds.length > 0 || this.selectedWalkwayId || this.selectedObstacleId) {
             e.preventDefault();
             this.deleteSelected();
           }
@@ -997,6 +1293,7 @@ document.addEventListener('alpine:init', () => {
         module: this.module,
         grid: this.grid,
         walkway: this.walkway,
+        obstacles: this.obstacles,
         modules: this.modules,
         autoBestStrategy: this.autoBestStrategy,
         autoFillMode: this.autoFillMode
@@ -1028,6 +1325,10 @@ document.addEventListener('alpine:init', () => {
       if (snapLayer) snapLayer.remove();
       const drawPreviewLayer = clone.querySelector('#drawing-preview-layer');
       if (drawPreviewLayer) drawPreviewLayer.remove();
+
+      // Clean selection states on exported obstacles
+      clone.querySelectorAll('.obstacle-group.selected').forEach(el => el.classList.remove('selected'));
+      clone.querySelectorAll('.obstacle-selection-outline').forEach(el => el.remove());
 
       // 2. Remove grid overlay if hidden
       const gridOverlay = clone.querySelector('#roof-grid-overlay');
@@ -1519,6 +1820,16 @@ document.addEventListener('alpine:init', () => {
         .pv-module-group.selected .pv-module-frame { stroke: #06B6D4 !important; stroke-width: 0.045 !important; }
         .pv-module-group.warning .pv-module-frame { stroke: #F59E0B !important; stroke-width: 0.045 !important; }
         .pv-module-group.collision .pv-module-frame, .pv-module-group.error_roof .pv-module-frame { stroke: #EF4444 !important; stroke-width: 0.05 !important; }
+        .obstacle-clearance-zone { fill: rgba(14, 165, 233, 0.08); stroke: rgba(14, 165, 233, 0.45); stroke-width: 0.018; stroke-dasharray: 0.08 0.05; }
+        .obstacle-clearance-label { fill: #0284C7; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.10px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+        .skylight-curb { fill: #F1F5F9; stroke: #0284C7; stroke-width: 0.022; }
+        .skylight-glass { fill: #38BDF8; stroke: #0284C7; stroke-width: 0.015; }
+        .skylight-glazing-line { stroke: rgba(255, 255, 255, 0.85); stroke-width: 0.012; stroke-dasharray: 0.08 0.04; }
+        .chimney-masonry { fill: #7C2D12; stroke: #431407; stroke-width: 0.022; }
+        .chimney-rim { fill: #475569; stroke: #334155; stroke-width: 0.015; }
+        .chimney-flue-circle { fill: #0F172A; stroke: #1E293B; stroke-width: 0.015; }
+        .obstacle-annotation { fill: #0F172A; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.11px; font-weight: 800; text-anchor: middle; dominant-baseline: central; }
+        .obstacle-group.obstacle-chimney .obstacle-annotation { fill: #FEF3C7; }
         .cad-dim-line { stroke: #38BDF8; stroke-width: 0.02; fill: none; }
         .cad-dim-tick { stroke: #38BDF8; stroke-width: 0.025; stroke-linecap: square; }
         .cad-witness-line { stroke: rgba(56, 189, 248, 0.4); stroke-width: 0.012; stroke-dasharray: 0.06 0.04; fill: none; }
@@ -1782,6 +2093,19 @@ document.addEventListener('alpine:init', () => {
               Number(w.width).toFixed(3),
               Number(w.height).toFixed(3),
               w.direction
+            ]);
+          });
+        }
+
+        if (this.obstacles && this.obstacles.length > 0) {
+          rows.push([]);
+          rows.push([isDe ? 'DACHAUFBAUTEN & HINDERNISSE' : 'ROOF OBSTACLES & PENETRATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT']);
+          rows.push([isDe ? 'Anzahl Aufbauten' : 'Total Obstacles Placed', this.obstacles.length, isDe ? 'Stk.' : 'pcs']);
+          this.obstacles.forEach((obs, idx) => {
+            rows.push([
+              `#${idx + 1} ${obs.type === 'skylight' ? (isDe ? 'Lichtkuppel/Fenster' : 'Skylight/Window') : (isDe ? 'Kamin' : 'Chimney')}: ${obs.name || ''}`,
+              `${Number(obs.width).toFixed(2)}m × ${Number(obs.length).toFixed(2)}m (X: ${Number(obs.x).toFixed(2)}m, Y: ${Number(obs.y).toFixed(2)}m, Buffer: ${(obs.clearance !== undefined ? Number(obs.clearance) : 0.3).toFixed(2)}m)`,
+              ''
             ]);
           });
         }

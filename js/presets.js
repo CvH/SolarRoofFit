@@ -146,3 +146,256 @@ export const WALKWAY_INTERVAL_OPTIONS = [
   { label: 'Every 4 Rows (High Density)', label_de: 'Alle 4 Reihen (Kompakt)', value: 4 }
 ];
 
+export const SKYLIGHT_PRESETS = {
+  // Flat-roof skylight domes (Lichtkuppeln)
+  dome_60_60: {
+    category: 'dome',
+    name: 'Skylight Dome 60 × 60 cm',
+    name_de: 'Lichtkuppel 60 × 60 cm',
+    width: 0.60,
+    length: 0.60,
+    description: 'Square flat roof skylight dome 60 × 60 cm.',
+    description_de: 'Quadratische Lichtkuppel 60 × 60 cm für Flachdächer.'
+  },
+  dome_80_80: {
+    category: 'dome',
+    name: 'Skylight Dome 80 × 80 cm',
+    name_de: 'Lichtkuppel 80 × 80 cm',
+    width: 0.80,
+    length: 0.80,
+    description: 'Square flat roof skylight dome 80 × 80 cm.',
+    description_de: 'Quadratische Lichtkuppel 80 × 80 cm für Flachdächer.'
+  },
+  dome_100_100: {
+    category: 'dome',
+    name: 'Skylight Dome 100 × 100 cm (Standard)',
+    name_de: 'Lichtkuppel 100 × 100 cm (Standard)',
+    width: 1.00,
+    length: 1.00,
+    description: 'Standard flat roof skylight dome 100 × 100 cm (1.0 × 1.0 m).',
+    description_de: 'Standard-Lichtkuppel 100 × 100 cm (1,0 × 1,0 m).'
+  },
+  dome_120_120: {
+    category: 'dome',
+    name: 'Skylight Dome 120 × 120 cm',
+    name_de: 'Lichtkuppel 120 × 120 cm',
+    width: 1.20,
+    length: 1.20,
+    description: 'Large flat roof skylight dome 120 × 120 cm (1.2 × 1.2 m).',
+    description_de: 'Große Lichtkuppel 120 × 120 cm (1,2 × 1,2 m).'
+  },
+  dome_150_150: {
+    category: 'dome',
+    name: 'Skylight Dome 150 × 150 cm',
+    name_de: 'Lichtkuppel 150 × 150 cm',
+    width: 1.50,
+    length: 1.50,
+    description: 'Extra large flat roof skylight dome 150 × 150 cm.',
+    description_de: 'Extra große Lichtkuppel 150 × 150 cm.'
+  },
+  dome_100_150: {
+    category: 'dome',
+    name: 'Skylight Dome 100 × 150 cm',
+    name_de: 'Lichtkuppel 100 × 150 cm',
+    width: 1.00,
+    length: 1.50,
+    description: 'Rectangular flat roof skylight dome 100 × 150 cm.',
+    description_de: 'Rechteckige Lichtkuppel 100 × 150 cm.'
+  },
+
+  // Roof windows (Velux DIN Standard)
+  velux_ck02: {
+    category: 'window',
+    name: 'Roof Window 55 × 78 cm (CK02)',
+    name_de: 'Dachfenster 55 × 78 cm (CK02)',
+    width: 0.55,
+    length: 0.78,
+    description: 'Compact roof window 55 × 78 cm (Velux CK02).',
+    description_de: 'Kompaktes Dachfenster 55 × 78 cm (Velux CK02).'
+  },
+  velux_ck04: {
+    category: 'window',
+    name: 'Roof Window 55 × 98 cm (CK04)',
+    name_de: 'Dachfenster 55 × 98 cm (CK04)',
+    width: 0.55,
+    length: 0.98,
+    description: 'Roof window 55 × 98 cm (Velux CK04).',
+    description_de: 'Dachfenster 55 × 98 cm (Velux CK04).'
+  },
+  velux_mk04: {
+    category: 'window',
+    name: 'Roof Window 78 × 98 cm (MK04)',
+    name_de: 'Dachfenster 78 × 98 cm (MK04)',
+    width: 0.78,
+    length: 0.98,
+    description: 'Standard roof window 78 × 98 cm (Velux MK04).',
+    description_de: 'Standard-Dachfenster 78 × 98 cm (Velux MK04).'
+  },
+  velux_mk06: {
+    category: 'window',
+    name: 'Roof Window 78 × 118 cm (MK06)',
+    name_de: 'Dachfenster 78 × 118 cm (MK06)',
+    width: 0.78,
+    length: 1.18,
+    description: 'Standard roof window 78 × 118 cm (Velux MK06).',
+    description_de: 'Standard-Dachfenster 78 × 118 cm (Velux MK06).'
+  },
+  velux_mk08: {
+    category: 'window',
+    name: 'Roof Window 78 × 140 cm (MK08)',
+    name_de: 'Dachfenster 78 × 140 cm (MK08)',
+    width: 0.78,
+    length: 1.40,
+    description: 'Tall roof window 78 × 140 cm (Velux MK08).',
+    description_de: 'Hohes Dachfenster 78 × 140 cm (Velux MK08).'
+  },
+  velux_pk08: {
+    category: 'window',
+    name: 'Roof Window 94 × 140 cm (PK08)',
+    name_de: 'Dachfenster 94 × 140 cm (PK08)',
+    width: 0.94,
+    length: 1.40,
+    description: 'Wide roof window 94 × 140 cm (Velux PK08).',
+    description_de: 'Breites Dachfenster 94 × 140 cm (Velux PK08).'
+  },
+  velux_sk06: {
+    category: 'window',
+    name: 'Roof Window 114 × 118 cm (SK06)',
+    name_de: 'Dachfenster 114 × 118 cm (SK06)',
+    width: 1.14,
+    length: 1.18,
+    description: 'Large roof window 114 × 118 cm (Velux SK06).',
+    description_de: 'Großes Dachfenster 114 × 118 cm (Velux SK06).'
+  },
+  velux_sk08: {
+    category: 'window',
+    name: 'Roof Window 114 × 140 cm (SK08)',
+    name_de: 'Dachfenster 114 × 140 cm (SK08)',
+    width: 1.14,
+    length: 1.40,
+    description: 'Large roof window 114 × 140 cm (Velux SK08).',
+    description_de: 'Großes Dachfenster 114 × 140 cm (Velux SK08).'
+  },
+  velux_uk08: {
+    category: 'window',
+    name: 'Roof Window 134 × 140 cm (UK08)',
+    name_de: 'Dachfenster 134 × 140 cm (UK08)',
+    width: 1.34,
+    length: 1.40,
+    description: 'Extra wide roof window 134 × 140 cm (Velux UK08).',
+    description_de: 'Maximales Dachfenster 134 × 140 cm (Velux UK08).'
+  },
+
+  // Custom Skylight
+  custom: {
+    category: 'custom',
+    name: 'Custom Skylight (0.30 – 2.50 m)',
+    name_de: 'Benutzerdefiniert (0,30 – 2,50 m)',
+    width: 1.00,
+    length: 1.00,
+    description: 'Custom skylight dimensions between 0.30 m and 2.50 m.',
+    description_de: 'Freie Abmessungen zwischen 0,30 m und 2,50 m.'
+  }
+};
+
+export const CHIMNEY_PRESETS = {
+  // Single-flue chimneys (Einzügig)
+  single_40_40: {
+    category: 'single',
+    name: 'Chimney 40 × 40 cm (Single-Flue)',
+    name_de: 'Schornstein 40 × 40 cm (Einzügig)',
+    width: 0.40,
+    length: 0.40,
+    flues: 1,
+    description: 'Standard single-flue masonry chimney 40 × 40 cm.',
+    description_de: 'Standard einzügiger gemauerter Kamin 40 × 40 cm.'
+  },
+  single_45_45: {
+    category: 'single',
+    name: 'Chimney 45 × 45 cm (Single-Flue)',
+    name_de: 'Schornstein 45 × 45 cm (Einzügig)',
+    width: 0.45,
+    length: 0.45,
+    flues: 1,
+    description: 'Single-flue chimney 45 × 45 cm.',
+    description_de: 'Einzügiger Kamin 45 × 45 cm.'
+  },
+  single_50_50: {
+    category: 'single',
+    name: 'Chimney 50 × 50 cm (Single-Flue Large)',
+    name_de: 'Schornstein 50 × 50 cm (Einzügig groß)',
+    width: 0.50,
+    length: 0.50,
+    flues: 1,
+    description: 'Large single-flue chimney 50 × 50 cm.',
+    description_de: 'Großer einzügiger Kamin 50 × 50 cm.'
+  },
+
+  // Double-flue / Rectangular chimneys (Zweizügig)
+  double_40_65: {
+    category: 'double',
+    name: 'Chimney 40 × 65 cm (Double-Flue)',
+    name_de: 'Schornstein 40 × 65 cm (Zweizügig)',
+    width: 0.40,
+    length: 0.65,
+    flues: 2,
+    description: 'Standard double-flue masonry chimney 40 × 65 cm.',
+    description_de: 'Zweizügiger Kamin / Kamin mit Lüftung 40 × 65 cm.'
+  },
+  double_40_80: {
+    category: 'double',
+    name: 'Chimney 40 × 80 cm (Double-Flue Long)',
+    name_de: 'Schornstein 40 × 80 cm (Zweizügig lang)',
+    width: 0.40,
+    length: 0.80,
+    flues: 2,
+    description: 'Double-flue chimney with ventilation shaft 40 × 80 cm.',
+    description_de: 'Zweizügiger Kamin mit Lüftungsschacht 40 × 80 cm.'
+  },
+  double_50_75: {
+    category: 'double',
+    name: 'Chimney 50 × 75 cm (Double-Flue Large)',
+    name_de: 'Schornstein 50 × 75 cm (Zweizügig groß)',
+    width: 0.50,
+    length: 0.75,
+    flues: 2,
+    description: 'Large double-flue chimney 50 × 75 cm.',
+    description_de: 'Großer zweizügiger Kamin 50 × 75 cm.'
+  },
+  double_50_100: {
+    category: 'double',
+    name: 'Chimney 50 × 100 cm (Multi-Flue)',
+    name_de: 'Schornstein 50 × 100 cm (Mehrzügig)',
+    width: 0.50,
+    length: 1.00,
+    flues: 3,
+    description: 'Multi-flue central building chimney 50 × 100 cm.',
+    description_de: 'Mehrzügiger Zentralschornstein 50 × 100 cm.'
+  },
+
+  // Vent / Exhaust pipe
+  vent_30_30: {
+    category: 'vent',
+    name: 'Vent / Flue Pipe 30 × 30 cm',
+    name_de: 'Abluftschacht / Abgasrohr 30 × 30 cm',
+    width: 0.30,
+    length: 0.30,
+    flues: 1,
+    description: 'Compact roof vent / exhaust pipe 30 × 30 cm.',
+    description_de: 'Kompakter Entlüftungsschacht / Rohr 30 × 30 cm.'
+  },
+
+  // Custom Chimney
+  custom: {
+    category: 'custom',
+    name: 'Custom Chimney (0.30 – 2.50 m)',
+    name_de: 'Benutzerdefiniert (0,30 – 2,50 m)',
+    width: 0.40,
+    length: 0.40,
+    flues: 1,
+    description: 'Custom chimney dimensions between 0.30 m and 2.50 m.',
+    description_de: 'Freie Abmessungen zwischen 0,30 m und 2,50 m.'
+  }
+};
+
+

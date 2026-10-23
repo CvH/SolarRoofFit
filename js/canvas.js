@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid, calculateSmartSnap, calculateWalkwaySnap, calculateWalkwayDragSnap } from './layout.js?v=26';
+import { snapToGrid, calculateSmartSnap, calculateWalkwaySnap, calculateWalkwayDragSnap, calculateObstacleSnap } from './layout.js?v=26';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -30,6 +30,8 @@ export class SvgCanvasManager {
     this.drawWalkwayStart = null;
     this.walkwayDragState = null;
     this.walkwayCallbacks = null;
+    this.obstacleDragState = null;
+    this.obstacleCallbacks = null;
     this.initListeners();
   }
 
@@ -141,8 +143,13 @@ export class SvgCanvasManager {
                    e.target.classList.contains('canvas-background-layer') ||
                    e.target.id === 'roof-grid-overlay';
 
-      if (isBg && this.walkwayCallbacks && this.walkwayCallbacks.onBackgroundClick) {
-        this.walkwayCallbacks.onBackgroundClick(e);
+      if (isBg) {
+        if (this.walkwayCallbacks && this.walkwayCallbacks.onBackgroundClick) {
+          this.walkwayCallbacks.onBackgroundClick(e);
+        }
+        if (this.obstacleCallbacks && this.obstacleCallbacks.onBackgroundClick) {
+          this.obstacleCallbacks.onBackgroundClick(e);
+        }
       }
 
       if (e.button === 1 || (e.button === 0 && isBg)) {
@@ -174,6 +181,11 @@ export class SvgCanvasManager {
 
       if (this.walkwayDragState) {
         this.handleWalkwayDragMove(e);
+        return;
+      }
+
+      if (this.obstacleDragState) {
+        this.handleObstacleDragMove(e);
         return;
       }
 
@@ -222,6 +234,11 @@ export class SvgCanvasManager {
 
       if (this.walkwayDragState) {
         this.handleWalkwayDragEnd(e);
+        return;
+      }
+
+      if (this.obstacleDragState) {
+        this.handleObstacleDragEnd(e);
         return;
       }
 
@@ -818,6 +835,382 @@ export class SvgCanvasManager {
     });
 
     layer.appendChild(fragment);
+  }
+
+  /**
+   * Renders roof obstacles (skylights and chimneys) onto the SVG canvas
+   */
+  renderObstacles(obstacles = [], selectedObstacleId = null, callbacks = {}) {
+    this.obstacleCallbacks = callbacks;
+    const layer = this.svg.querySelector('#obstacles-layer');
+    if (!layer) return;
+
+    layer.innerHTML = '';
+    if (!obstacles || obstacles.length === 0) return;
+
+    const fragment = document.createDocumentFragment();
+
+    obstacles.forEach(o => {
+      const g = document.createElementNS(SVG_NS, 'g');
+      const isSelected = o.id === selectedObstacleId;
+      g.setAttribute('class', `obstacle-group obstacle-${o.type} ${isSelected ? 'selected' : ''}`);
+      g.setAttribute('data-obstacle-id', o.id);
+
+      const oW = o.width || 1.0;
+      const oH = o.length || o.height || 1.0;
+      const c = o.clearance !== undefined ? Number(o.clearance) : 0.30;
+
+      // 1. Keep-out clearance safety buffer
+      if (c > 0) {
+        const clrRect = document.createElementNS(SVG_NS, 'rect');
+        clrRect.setAttribute('class', `obstacle-clearance-zone ${isSelected ? 'selected' : ''}`);
+        clrRect.setAttribute('x', (o.x - c).toFixed(4));
+        clrRect.setAttribute('y', (o.y - c).toFixed(4));
+        clrRect.setAttribute('width', (oW + 2 * c).toFixed(4));
+        clrRect.setAttribute('height', (oH + 2 * c).toFixed(4));
+        clrRect.setAttribute('rx', '0.04');
+        clrRect.setAttribute('ry', '0.04');
+        clrRect.style.pointerEvents = 'none';
+        g.appendChild(clrRect);
+
+        // Clearance label badge (small)
+        const clrLabel = document.createElementNS(SVG_NS, 'text');
+        clrLabel.setAttribute('class', 'obstacle-clearance-label');
+        clrLabel.setAttribute('x', (o.x + oW / 2).toFixed(4));
+        clrLabel.setAttribute('y', (o.y - c + 0.08).toFixed(4));
+        clrLabel.textContent = `+${c.toFixed(2)}m buffer`;
+        g.appendChild(clrLabel);
+      }
+
+      // 2. Obstacle Physical Body
+      if (o.type === 'skylight') {
+        // Skylight outer curb frame
+        const curb = document.createElementNS(SVG_NS, 'rect');
+        curb.setAttribute('class', `obstacle-main-rect skylight-curb ${isSelected ? 'selected' : ''}`);
+        curb.setAttribute('x', o.x.toFixed(4));
+        curb.setAttribute('y', o.y.toFixed(4));
+        curb.setAttribute('width', oW.toFixed(4));
+        curb.setAttribute('height', oH.toFixed(4));
+        curb.setAttribute('rx', '0.03');
+        curb.setAttribute('ry', '0.03');
+        curb.style.cursor = 'grab';
+        g.appendChild(curb);
+
+        // Glass pane
+        const inset = Math.min(0.06, Math.min(oW, oH) * 0.15);
+        const glass = document.createElementNS(SVG_NS, 'rect');
+        glass.setAttribute('class', 'obstacle-inner-rect skylight-glass');
+        glass.setAttribute('x', (o.x + inset).toFixed(4));
+        glass.setAttribute('y', (o.y + inset).toFixed(4));
+        glass.setAttribute('width', (oW - 2 * inset).toFixed(4));
+        glass.setAttribute('height', (oH - 2 * inset).toFixed(4));
+        glass.setAttribute('rx', '0.02');
+        glass.setAttribute('ry', '0.02');
+        glass.style.pointerEvents = 'none';
+        g.appendChild(glass);
+
+        // Architectural Glazing Division Lines
+        const lineH = document.createElementNS(SVG_NS, 'line');
+        lineH.setAttribute('class', 'obstacle-centerline skylight-glazing-line');
+        lineH.setAttribute('data-dir', 'h');
+        lineH.setAttribute('x1', (o.x + inset).toFixed(4));
+        lineH.setAttribute('y1', (o.y + oH / 2).toFixed(4));
+        lineH.setAttribute('x2', (o.x + oW - inset).toFixed(4));
+        lineH.setAttribute('y2', (o.y + oH / 2).toFixed(4));
+        g.appendChild(lineH);
+
+        const lineV = document.createElementNS(SVG_NS, 'line');
+        lineV.setAttribute('class', 'obstacle-centerline skylight-glazing-line');
+        lineV.setAttribute('data-dir', 'v');
+        lineV.setAttribute('x1', (o.x + oW / 2).toFixed(4));
+        lineV.setAttribute('y1', (o.y + inset).toFixed(4));
+        lineV.setAttribute('x2', (o.x + oW / 2).toFixed(4));
+        lineV.setAttribute('y2', (o.y + oH - inset).toFixed(4));
+        g.appendChild(lineV);
+      } else {
+        // Chimney outer masonry
+        const masonry = document.createElementNS(SVG_NS, 'rect');
+        masonry.setAttribute('class', `obstacle-main-rect chimney-masonry ${isSelected ? 'selected' : ''}`);
+        masonry.setAttribute('x', o.x.toFixed(4));
+        masonry.setAttribute('y', o.y.toFixed(4));
+        masonry.setAttribute('width', oW.toFixed(4));
+        masonry.setAttribute('height', oH.toFixed(4));
+        masonry.setAttribute('rx', '0.02');
+        masonry.setAttribute('ry', '0.02');
+        masonry.style.cursor = 'grab';
+        g.appendChild(masonry);
+
+        // Chimney flashing/rim
+        const inset = Math.min(0.04, Math.min(oW, oH) * 0.12);
+        const rim = document.createElementNS(SVG_NS, 'rect');
+        rim.setAttribute('class', 'obstacle-inner-rect chimney-rim');
+        rim.setAttribute('x', (o.x + inset).toFixed(4));
+        rim.setAttribute('y', (o.y + inset).toFixed(4));
+        rim.setAttribute('width', (oW - 2 * inset).toFixed(4));
+        rim.setAttribute('height', (oH - 2 * inset).toFixed(4));
+        rim.style.pointerEvents = 'none';
+        g.appendChild(rim);
+
+        // Flue pipe opening(s)
+        const isDouble = oW >= oH * 1.35 || oH >= oW * 1.35;
+        const flueRadius = Math.min(oW, oH) * 0.20;
+
+        if (!isDouble) {
+          const circle = document.createElementNS(SVG_NS, 'circle');
+          circle.setAttribute('class', 'chimney-flue-circle');
+          circle.setAttribute('cx', (o.x + oW / 2).toFixed(4));
+          circle.setAttribute('cy', (o.y + oH / 2).toFixed(4));
+          circle.setAttribute('r', flueRadius.toFixed(4));
+          circle.style.pointerEvents = 'none';
+          g.appendChild(circle);
+        } else {
+          const circle1 = document.createElementNS(SVG_NS, 'circle');
+          circle1.setAttribute('class', 'chimney-flue-circle');
+          circle1.style.pointerEvents = 'none';
+          const circle2 = document.createElementNS(SVG_NS, 'circle');
+          circle2.setAttribute('class', 'chimney-flue-circle');
+          circle2.style.pointerEvents = 'none';
+
+          if (oW >= oH) {
+            circle1.setAttribute('cx', (o.x + oW * 0.32).toFixed(4));
+            circle1.setAttribute('cy', (o.y + oH / 2).toFixed(4));
+            circle2.setAttribute('cx', (o.x + oW * 0.68).toFixed(4));
+            circle2.setAttribute('cy', (o.y + oH / 2).toFixed(4));
+          } else {
+            circle1.setAttribute('cx', (o.x + oW / 2).toFixed(4));
+            circle1.setAttribute('cy', (o.y + oH * 0.32).toFixed(4));
+            circle2.setAttribute('cx', (o.x + oW / 2).toFixed(4));
+            circle2.setAttribute('cy', (o.y + oH * 0.68).toFixed(4));
+          }
+          circle1.setAttribute('r', (flueRadius * 0.85).toFixed(4));
+          circle2.setAttribute('r', (flueRadius * 0.85).toFixed(4));
+          g.appendChild(circle1);
+          g.appendChild(circle2);
+        }
+      }
+
+      // 3. Selection outline
+      if (isSelected) {
+        const selBorder = document.createElementNS(SVG_NS, 'rect');
+        selBorder.setAttribute('class', 'obstacle-selection-outline');
+        selBorder.setAttribute('x', (o.x - 0.02).toFixed(4));
+        selBorder.setAttribute('y', (o.y - 0.02).toFixed(4));
+        selBorder.setAttribute('width', (oW + 0.04).toFixed(4));
+        selBorder.setAttribute('height', (oH + 0.04).toFixed(4));
+        selBorder.setAttribute('rx', '0.04');
+        selBorder.setAttribute('ry', '0.04');
+        selBorder.setAttribute('fill', 'none');
+        selBorder.setAttribute('stroke', '#06B6D4');
+        selBorder.setAttribute('stroke-width', '0.035');
+        selBorder.style.pointerEvents = 'none';
+        g.appendChild(selBorder);
+      }
+
+      // 4. Annotation text badge
+      const text = document.createElementNS(SVG_NS, 'text');
+      text.setAttribute('class', `obstacle-annotation ${isSelected ? 'selected' : ''}`);
+      text.setAttribute('x', (o.x + oW / 2).toFixed(4));
+      text.setAttribute('y', (o.y + oH / 2).toFixed(4));
+      const typeLabel = o.type === 'skylight' ? 'Skylight' : 'Chimney';
+      text.textContent = `${typeLabel} (${oW.toFixed(2)}×${oH.toFixed(2)}m)`;
+      g.appendChild(text);
+
+      // 5. Interaction Listeners
+      let lastPointerDownTime = 0;
+      g.addEventListener('pointerdown', (e) => {
+        const appState = this.getAppState ? this.getAppState() : {};
+        if (appState.activeTool === 'draw_walkway') return;
+
+        e.stopPropagation();
+        e.preventDefault();
+
+        const now = Date.now();
+        if (now - lastPointerDownTime < 350) {
+          lastPointerDownTime = 0;
+          if (callbacks.onObstacleDblClick) {
+            callbacks.onObstacleDblClick(o.id, e);
+          }
+          return;
+        }
+        lastPointerDownTime = now;
+
+        if (callbacks.onObstacleSelect) {
+          callbacks.onObstacleSelect(o.id, e);
+        }
+        this.startObstacleDrag(o, e);
+      });
+
+      g.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        if (callbacks.onObstacleDblClick) {
+          callbacks.onObstacleDblClick(o.id, e);
+        }
+      });
+
+      fragment.appendChild(g);
+    });
+
+    layer.appendChild(fragment);
+  }
+
+  startObstacleDrag(obstacleItem, event) {
+    const pointerMeters = this.clientToMeters(event.clientX, event.clientY);
+    this.obstacleDragState = {
+      pointerId: event.pointerId,
+      obstacleId: obstacleItem.id,
+      obstacle: { ...obstacleItem },
+      startPointerMeters: pointerMeters,
+      initialPos: { x: obstacleItem.x, y: obstacleItem.y },
+      hasMoved: false,
+      lastSnappedPos: { x: obstacleItem.x, y: obstacleItem.y }
+    };
+
+    const gEl = this.svg.querySelector(`g.obstacle-group[data-obstacle-id="${obstacleItem.id}"]`);
+    if (gEl) {
+      gEl.classList.add('dragging');
+      if (gEl.parentElement) {
+        gEl.parentElement.appendChild(gEl);
+      }
+    }
+
+    try {
+      this.svg.setPointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  handleObstacleDragMove(event) {
+    if (!this.obstacleDragState) return;
+
+    const currentPointer = this.clientToMeters(event.clientX, event.clientY);
+    const deltaX = currentPointer.x - this.obstacleDragState.startPointerMeters.x;
+    const deltaY = currentPointer.y - this.obstacleDragState.startPointerMeters.y;
+
+    if (Math.hypot(deltaX, deltaY) > 0.05) {
+      this.obstacleDragState.hasMoved = true;
+    }
+
+    const rawTarget = {
+      x: this.obstacleDragState.initialPos.x + deltaX,
+      y: this.obstacleDragState.initialPos.y + deltaY
+    };
+
+    const appState = this.getAppState ? this.getAppState() : {};
+    const snapResult = calculateObstacleSnap(
+      this.obstacleDragState.obstacle,
+      rawTarget,
+      appState.roof || {},
+      appState.grid || {},
+      appState.obstacles || []
+    );
+
+    this.obstacleDragState.lastSnappedPos = { x: snapResult.x, y: snapResult.y };
+    this.renderSnapGuides(snapResult.guides);
+
+    // Live update moving obstacle group in DOM
+    const gEl = this.svg.querySelector(`g.obstacle-group[data-obstacle-id="${this.obstacleDragState.obstacleId}"]`);
+    if (gEl) {
+      const o = this.obstacleDragState.obstacle;
+      const c = o.clearance !== undefined ? Number(o.clearance) : 0.30;
+      const oH = o.length || o.height || 1.0;
+      const curX = snapResult.x;
+      const curY = snapResult.y;
+
+      const clrRect = gEl.querySelector('.obstacle-clearance-zone');
+      if (clrRect) {
+        clrRect.setAttribute('x', (curX - c).toFixed(4));
+        clrRect.setAttribute('y', (curY - c).toFixed(4));
+      }
+
+      const clrLabel = gEl.querySelector('.obstacle-clearance-label');
+      if (clrLabel) {
+        clrLabel.setAttribute('x', (curX + o.width / 2).toFixed(4));
+        clrLabel.setAttribute('y', (curY - c + 0.08).toFixed(4));
+      }
+
+      const bodyRect = gEl.querySelector('.obstacle-main-rect');
+      if (bodyRect) {
+        bodyRect.setAttribute('x', curX.toFixed(4));
+        bodyRect.setAttribute('y', curY.toFixed(4));
+      }
+
+      const innerRect = gEl.querySelector('.obstacle-inner-rect');
+      if (innerRect) {
+        const inset = o.type === 'skylight' ? Math.min(0.06, Math.min(o.width, oH) * 0.15) : Math.min(0.04, Math.min(o.width, oH) * 0.12);
+        innerRect.setAttribute('x', (curX + inset).toFixed(4));
+        innerRect.setAttribute('y', (curY + inset).toFixed(4));
+      }
+
+      const selOutline = gEl.querySelector('.obstacle-selection-outline');
+      if (selOutline) {
+        selOutline.setAttribute('x', (curX - 0.02).toFixed(4));
+        selOutline.setAttribute('y', (curY - 0.02).toFixed(4));
+      }
+
+      const centerLines = gEl.querySelectorAll('.obstacle-centerline');
+      centerLines.forEach(l => {
+        const isH = l.getAttribute('data-dir') === 'h';
+        const inset = Math.min(0.06, Math.min(o.width, oH) * 0.15);
+        if (isH) {
+          l.setAttribute('x1', (curX + inset).toFixed(4));
+          l.setAttribute('y1', (curY + oH / 2).toFixed(4));
+          l.setAttribute('x2', (curX + o.width - inset).toFixed(4));
+          l.setAttribute('y2', (curY + oH / 2).toFixed(4));
+        } else {
+          l.setAttribute('x1', (curX + o.width / 2).toFixed(4));
+          l.setAttribute('y1', (curY + inset).toFixed(4));
+          l.setAttribute('x2', (curX + o.width / 2).toFixed(4));
+          l.setAttribute('y2', (curY + oH - inset).toFixed(4));
+        }
+      });
+
+      const flueCircles = gEl.querySelectorAll('.chimney-flue-circle');
+      if (flueCircles.length === 1) {
+        flueCircles[0].setAttribute('cx', (curX + o.width / 2).toFixed(4));
+        flueCircles[0].setAttribute('cy', (curY + oH / 2).toFixed(4));
+      } else if (flueCircles.length === 2) {
+        if (o.width >= oH) {
+          flueCircles[0].setAttribute('cx', (curX + o.width * 0.32).toFixed(4));
+          flueCircles[0].setAttribute('cy', (curY + oH / 2).toFixed(4));
+          flueCircles[1].setAttribute('cx', (curX + o.width * 0.68).toFixed(4));
+          flueCircles[1].setAttribute('cy', (curY + oH / 2).toFixed(4));
+        } else {
+          flueCircles[0].setAttribute('cx', (curX + o.width / 2).toFixed(4));
+          flueCircles[0].setAttribute('cy', (curY + oH * 0.32).toFixed(4));
+          flueCircles[1].setAttribute('cx', (curX + o.width / 2).toFixed(4));
+          flueCircles[1].setAttribute('cy', (curY + oH * 0.68).toFixed(4));
+        }
+      }
+
+      const textEl = gEl.querySelector('.obstacle-annotation');
+      if (textEl) {
+        textEl.setAttribute('x', (curX + o.width / 2).toFixed(4));
+        textEl.setAttribute('y', (curY + oH / 2).toFixed(4));
+      }
+    }
+  }
+
+  handleObstacleDragEnd(event) {
+    if (!this.obstacleDragState) return;
+
+    try {
+      this.svg.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+
+    this.renderSnapGuides([]);
+    const hasMoved = this.obstacleDragState.hasMoved;
+    const obstacleId = this.obstacleDragState.obstacleId;
+    const finalPos = this.obstacleDragState.lastSnappedPos;
+    this.obstacleDragState = null;
+
+    const gEl = this.svg.querySelector(`g.obstacle-group[data-obstacle-id="${obstacleId}"]`);
+    if (gEl) {
+      gEl.classList.remove('dragging');
+    }
+
+    if (hasMoved && this.obstacleCallbacks && this.obstacleCallbacks.onObstacleMoveEnd) {
+      this.obstacleCallbacks.onObstacleMoveEnd(obstacleId, finalPos.x, finalPos.y);
+    }
   }
 }
 

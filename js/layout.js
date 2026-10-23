@@ -99,7 +99,7 @@ export function evaluateModuleBoundary(mod, moduleConfig, roofConfig) {
  * Detects overlapping modules among all placed modules.
  * Returns a Set of module IDs that are colliding.
  */
-export function detectCollisions(modules, moduleConfig, customWalkways = []) {
+export function detectCollisions(modules, moduleConfig, customWalkways = [], obstacles = []) {
   const collidingIds = new Set();
   const bounds = modules.map(m => getModuleBounds(m, moduleConfig));
   const EPS = 0.005; // 5mm overlap threshold to ignore touching borders
@@ -128,6 +128,25 @@ export function detectCollisions(modules, moduleConfig, customWalkways = []) {
         const wBottom = w.y + w.height;
         const overlapX = Math.min(m.right, wRight) - Math.max(m.x, w.x);
         const overlapY = Math.min(m.bottom, wBottom) - Math.max(m.y, w.y);
+        if (overlapX > EPS && overlapY > EPS) {
+          collidingIds.add(m.id);
+        }
+      });
+    });
+  }
+
+  // Module to Obstacle collision (Skylights & Chimneys keep-out zone + clearance buffer)
+  if (obstacles && obstacles.length > 0) {
+    bounds.forEach(m => {
+      obstacles.forEach(o => {
+        const c = o.clearance !== undefined ? Number(o.clearance) : 0.30;
+        const oH = o.length || o.height || 1.0;
+        const oLeft = o.x - c;
+        const oTop = o.y - c;
+        const oRight = o.x + o.width + c;
+        const oBottom = o.y + oH + c;
+        const overlapX = Math.min(m.right, oRight) - Math.max(m.x, oLeft);
+        const overlapY = Math.min(m.bottom, oBottom) - Math.max(m.y, oTop);
         if (overlapX > EPS && overlapY > EPS) {
           collidingIds.add(m.id);
         }
@@ -194,16 +213,38 @@ export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkw
  * @param {Number} gapY - Vertical buffer / clamp gap
  * @returns {Array} Array of disjoint rectangular zones { x, y, width, height }
  */
-export function decomposeUsableArea(usableRect, customWalkways = [], gapX = 0.02, gapY = 0.02) {
+export function decomposeUsableArea(usableRect, customWalkways = [], obstacles = [], gapX = 0.02, gapY = 0.02) {
   let zones = [usableRect];
   const EPS = 0.005;
 
-  for (const obstacle of customWalkways) {
+  const keepOutBoxes = [];
+
+  for (const obstacle of (customWalkways || [])) {
+    keepOutBoxes.push({
+      ox1: obstacle.x - gapX,
+      oy1: obstacle.y - gapY,
+      ox2: obstacle.x + obstacle.width + gapX,
+      oy2: obstacle.y + obstacle.height + gapY
+    });
+  }
+
+  for (const obs of (obstacles || [])) {
+    const c = obs.clearance !== undefined ? Number(obs.clearance) : 0.30;
+    const oH = obs.length || obs.height || 1.0;
+    keepOutBoxes.push({
+      ox1: obs.x - c - gapX,
+      oy1: obs.y - c - gapY,
+      ox2: obs.x + obs.width + c + gapX,
+      oy2: obs.y + oH + c + gapY
+    });
+  }
+
+  for (const box of keepOutBoxes) {
     const nextZones = [];
-    const ox1 = obstacle.x - gapX;
-    const oy1 = obstacle.y - gapY;
-    const ox2 = obstacle.x + obstacle.width + gapX;
-    const oy2 = obstacle.y + obstacle.height + gapY;
+    const ox1 = box.ox1;
+    const oy1 = box.oy1;
+    const ox2 = box.ox2;
+    const oy2 = box.oy2;
 
     for (const r of zones) {
       const rx1 = r.x;
@@ -250,7 +291,7 @@ export function decomposeUsableArea(usableRect, customWalkways = [], gapX = 0.02
  * Calculates optimal 2D grid layout to maximize modules on the flat roof.
  * Respects 4-sided setbacks, clamp gaps, maintenance walkways, and raster alignment.
  */
-export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1, walkwayConfig = null, customWalkways = []) {
+export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1, walkwayConfig = null, customWalkways = [], obstacles = []) {
   const sb = getRoofSetbacks(roofConfig);
   const usableWidth = roofConfig.width - sb.left - sb.right;
   const usableLength = roofConfig.length - sb.top - sb.bottom;
@@ -331,18 +372,19 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     };
   };
 
-  // --- Zone-Partitioned Auto-Fill for Custom Walkways ---
-  // When custom walkways divide the roof, partition the usable space into disjoint sub-zones
-  // around each walkway and pack each zone independently to maximize output and guarantee clean alignment.
-  if (customWalkways && customWalkways.length > 0) {
+  // --- Zone-Partitioned Auto-Fill for Custom Walkways & Obstacles ---
+  // When custom walkways or obstacles divide the roof, partition the usable space into disjoint sub-zones
+  // around each obstacle and pack each zone independently to maximize output and guarantee clean alignment.
+  const hasObstructions = (customWalkways && customWalkways.length > 0) || (obstacles && obstacles.length > 0);
+  if (hasObstructions) {
     const usableRect = { x: sb.left, y: sb.top, width: usableWidth, height: usableLength };
-    const rawZones = decomposeUsableArea(usableRect, customWalkways, gapX, gapY);
+    const rawZones = decomposeUsableArea(usableRect, customWalkways, obstacles, gapX, gapY);
     const minSide = Math.min(w, h);
     // Filter zones where at least one panel can physically fit
     const zones = rawZones.filter(z => Math.max(z.width, z.height) >= minSide && Math.min(z.width, z.height) >= minSide);
 
     if (zones.length === 0) {
-      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: '0 modules (walkway obstruction)' };
+      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: '0 modules (walkway/obstacle obstruction)' };
     }
 
     // Helper to solve an individual partitioned zone
@@ -578,7 +620,7 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
       selected: false
     }));
 
-    // Filter out any modules that intersect custom walkways (Keep-out zones)
+    // Filter out any modules that intersect custom walkways or obstacles (Keep-out zones)
     if (customWalkways && customWalkways.length > 0) {
       finalizedModules = finalizedModules.filter(m => {
         const dims = getRotatedDimensions(moduleConfig, m.rotation || 0);
@@ -590,6 +632,26 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
           const wBottom = w.y + w.height;
           const overlapX = Math.min(mRight, wRight) - Math.max(m.x, w.x);
           const overlapY = Math.min(mBottom, wBottom) - Math.max(m.y, w.y);
+          return overlapX > EPS && overlapY > EPS;
+        });
+      });
+    }
+
+    if (obstacles && obstacles.length > 0) {
+      finalizedModules = finalizedModules.filter(m => {
+        const dims = getRotatedDimensions(moduleConfig, m.rotation || 0);
+        const mRight = m.x + dims.width;
+        const mBottom = m.y + dims.height;
+        const EPS = 0.005;
+        return !obstacles.some(o => {
+          const c = o.clearance !== undefined ? Number(o.clearance) : 0.30;
+          const oH = o.length || o.height || 1.0;
+          const oLeft = o.x - c;
+          const oTop = o.y - c;
+          const oRight = o.x + o.width + c;
+          const oBottom = o.y + oH + c;
+          const overlapX = Math.min(mRight, oRight) - Math.max(m.x, oLeft);
+          const overlapY = Math.min(mBottom, oBottom) - Math.max(m.y, oTop);
           return overlapX > EPS && overlapY > EPS;
         });
       });
@@ -1523,4 +1585,91 @@ export function calculateWalkwayDragSnap(
     guides
   };
 }
+
+/**
+ * Calculates snapped position and boundary clamping for moving a roof obstacle (skylight or chimney).
+ */
+export function calculateObstacleSnap(obstacle, rawTarget, roofConfig, gridConfig, existingObstacles = []) {
+  const step = (gridConfig && gridConfig.enabled !== false) ? (gridConfig.step || 0.1) : 0.05;
+  const oW = obstacle.width || 1.0;
+  const oH = obstacle.length || obstacle.height || 1.0;
+
+  let x = snapToGrid(rawTarget.x, step);
+  let y = snapToGrid(rawTarget.y, step);
+
+  const roofW = roofConfig?.width || 8.0;
+  const roofL = roofConfig?.length || 8.0;
+
+  // Clamping to roof boundaries
+  const maxX = Math.max(0, roofW - oW);
+  const maxY = Math.max(0, roofL - oH);
+  x = Math.max(0, Math.min(x, maxX));
+  y = Math.max(0, Math.min(y, maxY));
+
+  const guides = [];
+  const snapThreshold = 0.15;
+
+  if (Math.abs(x) < snapThreshold) {
+    guides.push({ axis: 'x', pos: 0, y1: 0, y2: roofL, type: 'roof', label: 'Roof Border' });
+  } else if (Math.abs(x - maxX) < snapThreshold) {
+    guides.push({ axis: 'x', pos: roofW, y1: 0, y2: roofL, type: 'roof', label: 'Roof Border' });
+  }
+
+  if (Math.abs(y) < snapThreshold) {
+    guides.push({ axis: 'y', pos: 0, x1: 0, x2: roofW, type: 'roof', label: 'Roof Border' });
+  } else if (Math.abs(y - maxY) < snapThreshold) {
+    guides.push({ axis: 'y', pos: roofL, x1: 0, x2: roofW, type: 'roof', label: 'Roof Border' });
+  }
+
+  return {
+    x: Number(x.toFixed(4)),
+    y: Number(y.toFixed(4)),
+    guides
+  };
+}
+
+/**
+ * Finds a free, non-overlapping spawn position on the roof for a new obstacle.
+ */
+export function findFreeObstaclePosition(existingObstacles = [], width = 1.0, length = 1.0, roofConfig = {}, gridStep = 0.25) {
+  const sb = getRoofSetbacks(roofConfig);
+  const roofW = roofConfig?.width || 8.0;
+  const roofL = roofConfig?.length || 8.0;
+
+  // Prefer center-left or center
+  const targetX = snapToGrid((roofW - width) / 2, gridStep);
+  const targetY = snapToGrid((roofL - length) / 2, gridStep);
+
+  const testObstacle = (x, y) => {
+    return !(existingObstacles || []).some(o => {
+      const oW = o.width || 1.0;
+      const oH = o.length || o.height || 1.0;
+      const overlapX = Math.min(x + width, o.x + oW) - Math.max(x, o.x);
+      const overlapY = Math.min(y + length, o.y + oH) - Math.max(y, o.y);
+      return overlapX > 0.05 && overlapY > 0.05;
+    });
+  };
+
+  if (testObstacle(targetX, targetY)) {
+    return { x: targetX, y: targetY };
+  }
+
+  const maxY = Math.max(0, roofL - sb.bottom - length);
+  const maxX = Math.max(0, roofW - sb.right - width);
+  for (let y = sb.top; y <= maxY; y += gridStep * 2) {
+    for (let x = sb.left; x <= maxX; x += gridStep * 2) {
+      const sx = snapToGrid(x, gridStep);
+      const sy = snapToGrid(y, gridStep);
+      if (testObstacle(sx, sy)) {
+        return { x: sx, y: sy };
+      }
+    }
+  }
+
+  return {
+    x: snapToGrid(sb.left, gridStep),
+    y: snapToGrid(sb.top, gridStep)
+  };
+}
+
 

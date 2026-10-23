@@ -1155,6 +1155,117 @@ input:checked + .slider-round:before {
   font-weight: 800;
 }
 
+/* Roof Obstacles (Skylights & Chimneys) on SVG Canvas */
+.obstacle-group {
+  cursor: grab;
+}
+
+.obstacle-group:active,
+.obstacle-group.dragging {
+  cursor: grabbing !important;
+}
+
+.obstacle-clearance-zone {
+  fill: rgba(14, 165, 233, 0.08);
+  stroke: rgba(14, 165, 233, 0.45);
+  stroke-width: 0.018;
+  stroke-dasharray: 0.08 0.05;
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.obstacle-group.obstacle-chimney .obstacle-clearance-zone {
+  fill: rgba(217, 119, 6, 0.08);
+  stroke: rgba(217, 119, 6, 0.45);
+}
+
+.obstacle-group:hover .obstacle-clearance-zone {
+  fill: rgba(14, 165, 233, 0.14);
+  stroke: rgba(14, 165, 233, 0.7);
+}
+
+.obstacle-group.selected .obstacle-clearance-zone {
+  fill: rgba(14, 165, 233, 0.18);
+  stroke: #0284C7;
+  stroke-width: 0.024;
+}
+
+.obstacle-clearance-label {
+  fill: #0284C7;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.10px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+  user-select: none;
+}
+
+.skylight-curb {
+  fill: #FFFFFF;
+  stroke: #0284C7;
+  stroke-width: 0.022;
+  filter: drop-shadow(0 0.02 0.04 rgba(2, 132, 199, 0.25));
+  transition: stroke 0.15s ease;
+}
+
+.skylight-glass {
+  fill: url(#skylight-glass-gradient);
+  stroke: #0284C7;
+  stroke-width: 0.015;
+}
+
+.skylight-glazing-line {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.012;
+  stroke-dasharray: 0.08 0.04;
+  pointer-events: none;
+}
+
+.chimney-masonry {
+  fill: #7C2D12;
+  stroke: #431407;
+  stroke-width: 0.022;
+  filter: drop-shadow(0 0.02 0.04 rgba(67, 20, 7, 0.35));
+  transition: stroke 0.15s ease;
+}
+
+.chimney-rim {
+  fill: #475569;
+  stroke: #334155;
+  stroke-width: 0.015;
+}
+
+.chimney-flue-circle {
+  fill: #0F172A;
+  stroke: #1E293B;
+  stroke-width: 0.015;
+}
+
+.obstacle-selection-outline {
+  stroke: #06B6D4;
+  stroke-width: 0.035;
+  stroke-dasharray: 0.08 0.05;
+  filter: drop-shadow(0 0 0.06 rgba(6, 182, 212, 0.6));
+}
+
+.obstacle-annotation {
+  fill: #0F172A;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.11px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: central;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  user-select: none;
+  filter: drop-shadow(0 0.01 0.02 rgba(255, 255, 255, 0.8));
+}
+
+.obstacle-group.obstacle-chimney .obstacle-annotation {
+  fill: #FEF3C7;
+  filter: drop-shadow(0 0.01 0.02 rgba(0, 0, 0, 0.8));
+}
+
 /* Walkway Draw Tool Cursor & Preview */
 .tool-draw-walkway {
   cursor: crosshair !important;
@@ -1222,6 +1333,17 @@ input:checked + .slider-round:before {
   border-color: #D97706 !important;
   background: rgba(217, 119, 6, 0.08) !important;
   box-shadow: 0 0 0 1px #D97706;
+}
+
+.custom-obstacle-item:hover {
+  border-color: #0284C7 !important;
+  background: #F0F9FF !important;
+}
+
+.custom-obstacle-item.selected {
+  border-color: #0284C7 !important;
+  background: rgba(14, 165, 233, 0.1) !important;
+  box-shadow: 0 0 0 1px #0284C7;
 }
 
 /* CAD Smart Magnetic Snap Alignment Guides */
