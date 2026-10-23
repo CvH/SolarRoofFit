@@ -140,10 +140,10 @@ export const RASTER_OPTIONS = [
 ];
 
 export const WALKWAY_INTERVAL_OPTIONS = [
-  { label: 'Every 1 Row (Frequent)', label_de: 'Jede 1 Reihe (Häufig)', value: 1 },
-  { label: 'Every 2 Rows (Standard)', label_de: 'Alle 2 Reihen (Standard)', value: 2 },
+  { label: 'Every 1 Row (Frequent)', label_de: 'Jede Reihe', value: 1 },
+  { label: 'Every 2 Rows (Standard)', label_de: 'Alle 2 Reihen', value: 2 },
   { label: 'Every 3 Rows', label_de: 'Alle 3 Reihen', value: 3 },
-  { label: 'Every 4 Rows (High Density)', label_de: 'Alle 4 Reihen (Kompakt)', value: 4 }
+  { label: 'Every 4 Rows (High Density)', label_de: 'Alle 4 Reihen', value: 4 }
 ];
 
 export const SKYLIGHT_PRESETS = {
@@ -377,7 +377,7 @@ export const CHIMNEY_PRESETS = {
   vent_30_30: {
     category: 'vent',
     name: 'Vent / Flue Pipe 30 × 30 cm',
-    name_de: 'Abluftschacht / Abgasrohr 30 × 30 cm',
+    name_de: 'Abluft / Rohr 30 × 30 cm',
     width: 0.30,
     length: 0.30,
     flues: 1,
@@ -389,7 +389,7 @@ export const CHIMNEY_PRESETS = {
   custom: {
     category: 'custom',
     name: 'Custom Chimney (0.30 – 2.50 m)',
-    name_de: 'Benutzerdefiniert (0,30 – 2,50 m)',
+    name_de: 'Individuell (0,30 – 2,50 m)',
     width: 0.40,
     length: 0.40,
     flues: 1,

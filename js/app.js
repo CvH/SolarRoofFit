@@ -1689,7 +1689,7 @@ document.addEventListener('alpine:init', () => {
           // Column 1: Roof Specs
           const col1X = tbX + 0.22;
           const lblRoof = createEl('text', { x: col1X, y: tbY + 0.54, class: 'cad-tb-label' });
-          lblRoof.textContent = isDe ? 'Dachabmessungen' : 'Roof Dimensions';
+          lblRoof.textContent = isDe ? 'Dachmaße' : 'Roof Dimensions';
           tbGroup.appendChild(lblRoof);
           const valRoof = createEl('text', { x: col1X, y: tbY + 0.70, class: 'cad-tb-val' });
           valRoof.textContent = `${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m (${this.roofArea} m²)`;
@@ -2026,23 +2026,23 @@ document.addEventListener('alpine:init', () => {
           [isDe ? 'SOLARROOFFIT - SOLAR PV STÜCKLISTE & SYSTEMSPEZIFIKATION' : 'SOLARROOFFIT - SOLAR PV BILL OF MATERIALS & SYSTEM SPECIFICATION'],
           [isDe ? 'Export-Zeitstempel' : 'Export Timestamp', new Date().toISOString()],
           [],
-          [isDe ? 'DACHABMESSUNGEN' : 'ROOF SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
-          [isDe ? 'Dachbreite (X)' : 'Roof Width (X)', this.roof.width, 'm'],
-          [isDe ? 'Dachlänge (Y)' : 'Roof Length (Y)', this.roof.length, 'm'],
+          [isDe ? 'DACHMASSE' : 'ROOF SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
+          [isDe ? 'Breite (X)' : 'Roof Width (X)', this.roof.width, 'm'],
+          [isDe ? 'Länge (Y)' : 'Roof Length (Y)', this.roof.length, 'm'],
           [isDe ? 'Brutto-Dachfläche' : 'Gross Roof Area', this.roofArea, 'm²'],
           [isDe ? 'Randabstände gekoppelt' : 'Perimeter Setbacks Linked', this.roof.setbackLinked ? (isDe ? 'Ja' : 'Yes') : (isDe ? 'Nein' : 'No'), ''],
-          [isDe ? 'Randabstand (Oben / Nord)' : 'Perimeter Setback (Top / North)', this.roofSetbackTop, 'm'],
-          [isDe ? 'Randabstand (Unten / Süd)' : 'Perimeter Setback (Bottom / South)', this.roofSetbackBottom, 'm'],
-          [isDe ? 'Randabstand (Links / West)' : 'Perimeter Setback (Left / West)', this.roofSetbackLeft, 'm'],
-          [isDe ? 'Randabstand (Rechts / Ost)' : 'Perimeter Setback (Right / East)', this.roofSetbackRight, 'm'],
+          [isDe ? 'Rand Oben' : 'Perimeter Setback (Top / North)', this.roofSetbackTop, 'm'],
+          [isDe ? 'Rand Unten' : 'Perimeter Setback (Bottom / South)', this.roofSetbackBottom, 'm'],
+          [isDe ? 'Rand Links' : 'Perimeter Setback (Left / West)', this.roofSetbackLeft, 'm'],
+          [isDe ? 'Rand Rechts' : 'Perimeter Setback (Right / East)', this.roofSetbackRight, 'm'],
           [isDe ? 'Nutzbare Solarfläche' : 'Net Usable Solar Area', this.usableArea, 'm²'],
           [isDe ? 'Wartungsgänge aktiv' : 'Maintenance Walkways Enabled', this.walkway.enabled ? (isDe ? 'Ja' : 'Yes') : (isDe ? 'Nein' : 'No'), ''],
           [isDe ? 'Wegbreite' : 'Walkway Corridor Width', this.walkway.enabled ? this.walkway.width : 'N/A', 'm'],
           [isDe ? 'Intervall' : 'Walkway Insertion Interval', this.walkway.enabled ? (isDe ? `Alle ${this.walkway.interval} Reihen` : `Every ${this.walkway.interval} rows`) : 'N/A', ''],
           [isDe ? 'Laufrichtung' : 'Walkway Corridor Direction', this.walkway.enabled ? this.walkway.direction : 'N/A', ''],
           [],
-          [isDe ? 'PV-MODUL SPEZIFIKATIONEN' : 'PV MODULE SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
-          [isDe ? 'Modell-Voreinstellung' : 'Module Model Preset', this.getPresetName(this.modulePresets[this.module.preset]) || 'Custom', ''],
+          [isDe ? 'PV-MODULE' : 'PV MODULE SPECIFICATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT'],
+          [isDe ? 'Modell' : 'Module Model Preset', this.getPresetName(this.modulePresets[this.module.preset]) || 'Custom', ''],
           [isDe ? 'Modulbreite' : 'Module Width', this.module.width, 'mm'],
           [isDe ? 'Modullänge / Höhe' : 'Module Height / Length', this.module.height, 'mm'],
           [isDe ? 'Nennleistung' : 'Module Peak Power', this.module.power, 'Wp'],
@@ -2079,7 +2079,7 @@ document.addEventListener('alpine:init', () => {
 
         if (this.walkway.customCorridors && this.walkway.customCorridors.length > 0) {
           rows.push([]);
-          rows.push([isDe ? 'BENUTZERDEFINIERTE WARTUNGSGÄNGE' : 'CUSTOM MAINTENANCE WALKWAYS']);
+          rows.push([isDe ? 'EIGENE GÄNGE' : 'CUSTOM MAINTENANCE WALKWAYS']);
           rows.push(isDe
             ? ['#', 'ID', 'Position X (m)', 'Position Y (m)', 'Breite (m)', 'Länge / Höhe (m)', 'Richtung']
             : ['#', 'ID', 'Position X (m)', 'Position Y (m)', 'Width (m)', 'Length / Height (m)', 'Direction']
@@ -2099,7 +2099,7 @@ document.addEventListener('alpine:init', () => {
 
         if (this.obstacles && this.obstacles.length > 0) {
           rows.push([]);
-          rows.push([isDe ? 'DACHAUFBAUTEN & HINDERNISSE' : 'ROOF OBSTACLES & PENETRATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT']);
+          rows.push([isDe ? 'DACHAUFBAUTEN' : 'ROOF OBSTACLES & PENETRATIONS', isDe ? 'WERT' : 'VALUE', isDe ? 'EINHEIT' : 'UNIT']);
           rows.push([isDe ? 'Anzahl Aufbauten' : 'Total Obstacles Placed', this.obstacles.length, isDe ? 'Stk.' : 'pcs']);
           this.obstacles.forEach((obs, idx) => {
             rows.push([
