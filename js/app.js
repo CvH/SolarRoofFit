@@ -394,6 +394,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     onRoofDimensionChange() {
+      if (typeof this.roof.width !== 'number' || isNaN(this.roof.width) || this.roof.width <= 0) {
+        this.roof.width = 1.0;
+      }
+      if (typeof this.roof.length !== 'number' || isNaN(this.roof.length) || this.roof.length <= 0) {
+        this.roof.length = 1.0;
+      }
       this.refreshValidation();
       if (this.canvasManager) {
         this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
