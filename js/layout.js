@@ -99,11 +99,12 @@ export function evaluateModuleBoundary(mod, moduleConfig, roofConfig) {
  * Detects overlapping modules among all placed modules.
  * Returns a Set of module IDs that are colliding.
  */
-export function detectCollisions(modules, moduleConfig) {
+export function detectCollisions(modules, moduleConfig, customWalkways = []) {
   const collidingIds = new Set();
   const bounds = modules.map(m => getModuleBounds(m, moduleConfig));
   const EPS = 0.005; // 5mm overlap threshold to ignore touching borders
 
+  // Module to Module collision
   for (let i = 0; i < bounds.length; i++) {
     for (let j = i + 1; j < bounds.length; j++) {
       const a = bounds[i];
@@ -117,6 +118,21 @@ export function detectCollisions(modules, moduleConfig) {
         collidingIds.add(b.id);
       }
     }
+  }
+
+  // Module to Custom Walkway collision (Keep-out zone)
+  if (customWalkways && customWalkways.length > 0) {
+    bounds.forEach(m => {
+      customWalkways.forEach(w => {
+        const wRight = w.x + w.width;
+        const wBottom = w.y + w.height;
+        const overlapX = Math.min(m.right, wRight) - Math.max(m.x, w.x);
+        const overlapY = Math.min(m.bottom, wBottom) - Math.max(m.y, w.y);
+        if (overlapX > EPS && overlapY > EPS) {
+          collidingIds.add(m.id);
+        }
+      });
+    });
   }
 
   return collidingIds;
@@ -172,7 +188,7 @@ export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkw
  * Calculates optimal 2D grid layout to maximize modules on the flat roof.
  * Respects 4-sided setbacks, clamp gaps, maintenance walkways, and raster alignment.
  */
-export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1, walkwayConfig = null) {
+export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'optimal', gridStep = 0.1, walkwayConfig = null, customWalkways = []) {
   const sb = getRoofSetbacks(roofConfig);
   const usableWidth = roofConfig.width - sb.left - sb.right;
   const usableLength = roofConfig.length - sb.top - sb.bottom;
@@ -317,16 +333,30 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     const deltaX = startX - minX;
     const deltaY = startY - minY;
 
-    let idCounter = 1;
-    const timestamp = Date.now();
-
-    const finalizedModules = mods.map(m => ({
+    let finalizedModules = mods.map(m => ({
       id: `pv-${timestamp}-${idCounter++}`,
       x: Number((m.x + deltaX).toFixed(4)),
       y: Number((m.y + deltaY).toFixed(4)),
       rotation: m.rotation,
       selected: false
     }));
+
+    // Filter out any modules that intersect custom walkways (Keep-out zones)
+    if (customWalkways && customWalkways.length > 0) {
+      finalizedModules = finalizedModules.filter(m => {
+        const dims = getRotatedDimensions(moduleConfig, m.rotation || 0);
+        const mRight = m.x + dims.width;
+        const mBottom = m.y + dims.height;
+        const EPS = 0.005;
+        return !customWalkways.some(w => {
+          const wRight = w.x + w.width;
+          const wBottom = w.y + w.height;
+          const overlapX = Math.min(mRight, wRight) - Math.max(m.x, w.x);
+          const overlapY = Math.min(mBottom, wBottom) - Math.max(m.y, w.y);
+          return overlapX > EPS && overlapY > EPS;
+        });
+      });
+    }
 
     const finalizedWalkways = (winner.walkways || []).map(wk => ({
       x: Number((wk.x + deltaX).toFixed(4)),
@@ -800,6 +830,335 @@ export function calculateSmartSnap(
     y: Number(finalY.toFixed(4)),
     snappedX: bestX !== null,
     snappedY: bestY !== null,
+    guides
+  };
+}
+
+/**
+ * Calculates magnetic snap for drawing a new walkway corridor.
+ * Snaps to module row/column edges, clamp gaps, roof setbacks, and raster grid.
+ * Auto-expands length across the full roof or aligned module group if short drag.
+ */
+export function calculateWalkwaySnap(
+  startPoint,
+  currentPoint,
+  allModules = [],
+  moduleConfig = {},
+  roofConfig = {},
+  walkwayWidth = 0.8,
+  gridConfig = {}
+) {
+  const sb = getRoofSetbacks(roofConfig);
+  const gapX = ((moduleConfig.gapX !== undefined ? moduleConfig.gapX : 20) / 1000);
+  const gapY = ((moduleConfig.gapY !== undefined ? moduleConfig.gapY : 20) / 1000);
+  const gridStep = gridConfig && gridConfig.step ? gridConfig.step : 0.25;
+  const gridEnabled = gridConfig && gridConfig.enabled !== false;
+
+  const dx = currentPoint.x - startPoint.x;
+  const dy = currentPoint.y - startPoint.y;
+  const isHorizontal = Math.abs(dx) >= Math.abs(dy);
+
+  const guides = [];
+  const snapThreshold = 0.25; // 25cm magnetic pull distance
+
+  if (isHorizontal) {
+    // Horizontal corridor: thickness is walkwayWidth (height)
+    const wHeight = walkwayWidth;
+    const targetY = currentPoint.y - wHeight / 2;
+    let bestY = null;
+    let minDiffY = snapThreshold;
+    let yGuide = null;
+
+    // Check module edges
+    allModules.forEach(m => {
+      const b = getModuleBounds(m, moduleConfig);
+      const candidates = [
+        { y: b.bottom + gapY, guideY: b.bottom + gapY, label: `Row Gap (${(b.bottom + gapY).toFixed(2)}m)` },
+        { y: b.y - wHeight - gapY, guideY: b.y - gapY, label: `Row Gap (${(b.y - gapY).toFixed(2)}m)` },
+        { y: b.bottom, guideY: b.bottom, label: `Row Edge (${b.bottom.toFixed(2)}m)` },
+        { y: b.y - wHeight, guideY: b.y, label: `Row Edge (${b.y.toFixed(2)}m)` }
+      ];
+
+      candidates.forEach(c => {
+        const diff = Math.abs(targetY - c.y);
+        if (diff < minDiffY) {
+          minDiffY = diff;
+          bestY = c.y;
+          yGuide = {
+            axis: 'y',
+            pos: c.guideY,
+            label: c.label,
+            type: 'alignment',
+            x1: 0,
+            x2: roofConfig.width
+          };
+        }
+      });
+    });
+
+    // Check setbacks
+    const roofCands = [
+      { y: sb.top, guideY: sb.top, label: `Setback Top (${sb.top.toFixed(2)}m)` },
+      { y: roofConfig.length - sb.bottom - wHeight, guideY: roofConfig.length - sb.bottom, label: `Setback Bottom (${(roofConfig.length - sb.bottom).toFixed(2)}m)` }
+    ];
+    roofCands.forEach(rc => {
+      const diff = Math.abs(targetY - rc.y);
+      if (diff < minDiffY) {
+        minDiffY = diff;
+        bestY = rc.y;
+        yGuide = {
+          axis: 'y',
+          pos: rc.guideY,
+          label: rc.label,
+          type: 'setback',
+          x1: 0,
+          x2: roofConfig.width
+        };
+      }
+    });
+
+    const finalY = bestY !== null ? bestY : (gridEnabled ? snapToGrid(targetY, gridStep) : targetY);
+    if (yGuide) guides.push(yGuide);
+
+    // Horizontal span calculation
+    let finalX, finalWidth;
+    if (Math.abs(dx) < 0.6) {
+      // Short drag / single click -> Auto-expand across full usable roof
+      finalX = sb.left;
+      finalWidth = Math.max(0.4, roofConfig.width - sb.left - sb.right);
+    } else {
+      let rawLeft = Math.min(startPoint.x, currentPoint.x);
+      let rawRight = Math.max(startPoint.x, currentPoint.x);
+
+      let bestLeft = null;
+      let minDiffLeft = snapThreshold;
+      let bestRight = null;
+      let minDiffRight = snapThreshold;
+
+      allModules.forEach(m => {
+        const b = getModuleBounds(m, moduleConfig);
+        const lDiff = Math.abs(rawLeft - b.x);
+        if (lDiff < minDiffLeft) { minDiffLeft = lDiff; bestLeft = b.x; }
+        const rDiff = Math.abs(rawRight - b.right);
+        if (rDiff < minDiffRight) { minDiffRight = rDiff; bestRight = b.right; }
+      });
+
+      if (Math.abs(rawLeft - sb.left) < minDiffLeft) bestLeft = sb.left;
+      if (Math.abs(rawRight - (roofConfig.width - sb.right)) < minDiffRight) bestRight = roofConfig.width - sb.right;
+      if (Math.abs(rawLeft) < minDiffLeft) bestLeft = 0;
+      if (Math.abs(rawRight - roofConfig.width) < minDiffRight) bestRight = roofConfig.width;
+
+      finalX = bestLeft !== null ? bestLeft : (gridEnabled ? snapToGrid(rawLeft, gridStep) : rawLeft);
+      const endX = bestRight !== null ? bestRight : (gridEnabled ? snapToGrid(rawRight, gridStep) : rawRight);
+      finalWidth = Math.max(0.4, Math.abs(endX - finalX));
+    }
+
+    return {
+      walkway: {
+        x: Number(finalX.toFixed(4)),
+        y: Number(finalY.toFixed(4)),
+        width: Number(finalWidth.toFixed(4)),
+        height: Number(wHeight.toFixed(4)),
+        direction: 'horizontal',
+        isCustom: true
+      },
+      guides
+    };
+  } else {
+    // Vertical corridor: thickness is walkwayWidth (width)
+    const wWidth = walkwayWidth;
+    const targetX = currentPoint.x - wWidth / 2;
+    let bestX = null;
+    let minDiffX = snapThreshold;
+    let xGuide = null;
+
+    allModules.forEach(m => {
+      const b = getModuleBounds(m, moduleConfig);
+      const candidates = [
+        { x: b.right + gapX, guideX: b.right + gapX, label: `Col Gap (${(b.right + gapX).toFixed(2)}m)` },
+        { x: b.x - wWidth - gapX, guideX: b.x - gapX, label: `Col Gap (${(b.x - gapX).toFixed(2)}m)` },
+        { x: b.right, guideX: b.right, label: `Col Edge (${b.right.toFixed(2)}m)` },
+        { x: b.x - wWidth, guideX: b.x, label: `Col Edge (${b.x.toFixed(2)}m)` }
+      ];
+
+      candidates.forEach(c => {
+        const diff = Math.abs(targetX - c.x);
+        if (diff < minDiffX) {
+          minDiffX = diff;
+          bestX = c.x;
+          xGuide = {
+            axis: 'x',
+            pos: c.guideX,
+            label: c.label,
+            type: 'alignment',
+            y1: 0,
+            y2: roofConfig.length
+          };
+        }
+      });
+    });
+
+    const roofCands = [
+      { x: sb.left, guideX: sb.left, label: `Setback Left (${sb.left.toFixed(2)}m)` },
+      { x: roofConfig.width - sb.right - wWidth, guideX: roofConfig.width - sb.right, label: `Setback Right (${(roofConfig.width - sb.right).toFixed(2)}m)` }
+    ];
+    roofCands.forEach(rc => {
+      const diff = Math.abs(targetX - rc.x);
+      if (diff < minDiffX) {
+        minDiffX = diff;
+        bestX = rc.x;
+        xGuide = {
+          axis: 'x',
+          pos: rc.guideX,
+          label: rc.label,
+          type: 'setback',
+          y1: 0,
+          y2: roofConfig.length
+        };
+      }
+    });
+
+    const finalX = bestX !== null ? bestX : (gridEnabled ? snapToGrid(targetX, gridStep) : targetX);
+    if (xGuide) guides.push(xGuide);
+
+    // Vertical span calculation
+    let finalY, finalHeight;
+    if (Math.abs(dy) < 0.6) {
+      // Auto-expand across full usable roof length
+      finalY = sb.top;
+      finalHeight = Math.max(0.4, roofConfig.length - sb.top - sb.bottom);
+    } else {
+      let rawTop = Math.min(startPoint.y, currentPoint.y);
+      let rawBottom = Math.max(startPoint.y, currentPoint.y);
+
+      let bestTop = null;
+      let minDiffTop = snapThreshold;
+      let bestBottom = null;
+      let minDiffBottom = snapThreshold;
+
+      allModules.forEach(m => {
+        const b = getModuleBounds(m, moduleConfig);
+        const tDiff = Math.abs(rawTop - b.y);
+        if (tDiff < minDiffTop) { minDiffTop = tDiff; bestTop = b.y; }
+        const bDiff = Math.abs(rawBottom - b.bottom);
+        if (bDiff < minDiffBottom) { minDiffBottom = bDiff; bestBottom = b.bottom; }
+      });
+
+      if (Math.abs(rawTop - sb.top) < minDiffTop) bestTop = sb.top;
+      if (Math.abs(rawBottom - (roofConfig.length - sb.bottom)) < minDiffBottom) bestBottom = roofConfig.length - sb.bottom;
+      if (Math.abs(rawTop) < minDiffTop) bestTop = 0;
+      if (Math.abs(rawBottom - roofConfig.length) < minDiffBottom) bestBottom = roofConfig.length;
+
+      finalY = bestTop !== null ? bestTop : (gridEnabled ? snapToGrid(rawTop, gridStep) : rawTop);
+      const endY = bestBottom !== null ? bestBottom : (gridEnabled ? snapToGrid(rawBottom, gridStep) : rawBottom);
+      finalHeight = Math.max(0.4, Math.abs(endY - finalY));
+    }
+
+    return {
+      walkway: {
+        x: Number(finalX.toFixed(4)),
+        y: Number(finalY.toFixed(4)),
+        width: Number(wWidth.toFixed(4)),
+        height: Number(finalHeight.toFixed(4)),
+        direction: 'vertical',
+        isCustom: true
+      },
+      guides
+    };
+  }
+}
+
+/**
+ * Calculates magnetic snap when dragging an existing custom walkway.
+ */
+export function calculateWalkwayDragSnap(
+  movingWalkway,
+  rawTarget,
+  allModules = [],
+  moduleConfig = {},
+  roofConfig = {},
+  gridConfig = {}
+) {
+  const sb = getRoofSetbacks(roofConfig);
+  const gapX = ((moduleConfig.gapX !== undefined ? moduleConfig.gapX : 20) / 1000);
+  const gapY = ((moduleConfig.gapY !== undefined ? moduleConfig.gapY : 20) / 1000);
+  const gridStep = gridConfig && gridConfig.step ? gridConfig.step : 0.25;
+  const gridEnabled = gridConfig && gridConfig.enabled !== false;
+
+  const isHorizontal = movingWalkway.direction === 'horizontal';
+  const guides = [];
+  const snapThreshold = 0.22;
+
+  let bestX = null;
+  let minDiffX = snapThreshold;
+  let xGuide = null;
+
+  let bestY = null;
+  let minDiffY = snapThreshold;
+  let yGuide = null;
+
+  if (isHorizontal) {
+    // Snap Y (across rows)
+    const targetY = rawTarget.y;
+    allModules.forEach(m => {
+      const b = getModuleBounds(m, moduleConfig);
+      const cands = [
+        { y: b.bottom + gapY, guideY: b.bottom + gapY, label: `Row Gap (${(b.bottom + gapY).toFixed(2)}m)` },
+        { y: b.y - movingWalkway.height - gapY, guideY: b.y - gapY, label: `Row Gap (${(b.y - gapY).toFixed(2)}m)` },
+        { y: b.bottom, guideY: b.bottom, label: `Row Edge (${b.bottom.toFixed(2)}m)` },
+        { y: b.y - movingWalkway.height, guideY: b.y, label: `Row Edge (${b.y.toFixed(2)}m)` }
+      ];
+      cands.forEach(c => {
+        const diff = Math.abs(targetY - c.y);
+        if (diff < minDiffY) {
+          minDiffY = diff;
+          bestY = c.y;
+          yGuide = { axis: 'y', pos: c.guideY, label: c.label, type: 'alignment', x1: 0, x2: roofConfig.width };
+        }
+      });
+    });
+
+    // Snap X to setback or 0
+    if (Math.abs(rawTarget.x - sb.left) < minDiffX) {
+      bestX = sb.left;
+      xGuide = { axis: 'x', pos: sb.left, label: 'Setback Left', type: 'setback', y1: 0, y2: roofConfig.length };
+    }
+  } else {
+    // Vertical: Snap X (across columns)
+    const targetX = rawTarget.x;
+    allModules.forEach(m => {
+      const b = getModuleBounds(m, moduleConfig);
+      const cands = [
+        { x: b.right + gapX, guideX: b.right + gapX, label: `Col Gap (${(b.right + gapX).toFixed(2)}m)` },
+        { x: b.x - movingWalkway.width - gapX, guideX: b.x - gapX, label: `Col Gap (${(b.x - gapX).toFixed(2)}m)` },
+        { x: b.right, guideX: b.right, label: `Col Edge (${b.right.toFixed(2)}m)` },
+        { x: b.x - movingWalkway.width, guideX: b.x, label: `Col Edge (${b.x.toFixed(2)}m)` }
+      ];
+      cands.forEach(c => {
+        const diff = Math.abs(targetX - c.x);
+        if (diff < minDiffX) {
+          minDiffX = diff;
+          bestX = c.x;
+          xGuide = { axis: 'x', pos: c.guideX, label: c.label, type: 'alignment', y1: 0, y2: roofConfig.length };
+        }
+      });
+    });
+
+    if (Math.abs(rawTarget.y - sb.top) < minDiffY) {
+      bestY = sb.top;
+      yGuide = { axis: 'y', pos: sb.top, label: 'Setback Top', type: 'setback', x1: 0, x2: roofConfig.width };
+    }
+  }
+
+  const finalX = bestX !== null ? bestX : (gridEnabled ? snapToGrid(rawTarget.x, gridStep) : rawTarget.x);
+  const finalY = bestY !== null ? bestY : (gridEnabled ? snapToGrid(rawTarget.y, gridStep) : rawTarget.y);
+
+  if (xGuide) guides.push(xGuide);
+  if (yGuide) guides.push(yGuide);
+
+  return {
+    x: Number(finalX.toFixed(4)),
+    y: Number(finalY.toFixed(4)),
     guides
   };
 }

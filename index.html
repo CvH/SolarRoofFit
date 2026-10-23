@@ -12,10 +12,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=24">
+  <link rel="stylesheet" href="css/styles.css?v=25">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=23"></script>
+  <script type="module" src="js/app.js?v=25"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -337,6 +337,43 @@
               </div>
             </div>
           </div>
+
+          <!-- Custom Placed Walkways Manager Section -->
+          <div class="custom-walkways-section" style="margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border-color);">
+            <div class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+              <span style="font-weight: 700; color: var(--text-main);" x-text="t('customWalkwaysTitle')">Custom Walkways</span>
+              <span class="badge-count" x-text="(walkway.customCorridors || []).length" style="background: rgba(217,119,6,0.15); color: var(--solar-amber); font-weight: 700; font-size: 0.65rem; padding: 0.1rem 0.35rem; border-radius: 4px;">0</span>
+            </div>
+            <div class="custom-walkways-actions" style="display: flex; gap: 0.3rem; margin-bottom: 0.35rem;">
+              <button type="button" class="btn btn-outline" style="flex: 1; font-size: 0.72rem; padding: 0.25rem 0.4rem;" :class="activeTool === 'draw_walkway' ? 'btn-solar active' : ''" @click="toggleDrawWalkway()">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+                <span x-text="t('btnDrawWalkway')">Draw Walkway</span>
+              </button>
+              <button type="button" class="btn btn-outline" style="font-size: 0.72rem; padding: 0.25rem 0.4rem;" :disabled="!walkway.customCorridors || walkway.customCorridors.length === 0" @click="clearCustomWalkways()" :title="t('clearCustomWalkways')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
+              </button>
+            </div>
+
+            <!-- List of custom walkways -->
+            <template x-if="walkway.customCorridors && walkway.customCorridors.length > 0">
+              <div class="custom-walkways-list" style="display: flex; flex-direction: column; gap: 0.25rem; max-height: 120px; overflow-y: auto;">
+                <template x-for="(w, idx) in walkway.customCorridors" :key="w.id">
+                  <div class="custom-walkway-item" :class="selectedWalkwayId === w.id ? 'selected' : ''" @click="selectWalkway(w.id)" style="display: flex; align-items: center; justify-content: space-between; padding: 0.2rem 0.4rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.7rem; cursor: pointer;">
+                    <div style="display: flex; align-items: center; gap: 0.3rem;">
+                      <span style="font-family: 'JetBrains Mono', monospace; color: var(--solar-amber); font-weight: 700;" x-text="'#' + (idx + 1)"></span>
+                      <span x-text="(w.direction === 'vertical' ? (lang === 'de' ? 'Vertikal' : 'Vertical') : (lang === 'de' ? 'Horizontal' : 'Horizontal')) + ' (' + (w.direction === 'vertical' ? w.width : w.height) + 'm)'"></span>
+                    </div>
+                    <button type="button" @click.stop="deleteCustomWalkway(w.id)" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 0.1rem;" title="Delete">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="!walkway.customCorridors || walkway.customCorridors.length === 0">
+              <p style="font-size: 0.68rem; color: var(--text-subtle); margin: 0.2rem 0;" x-text="t('noCustomWalkways')">No custom walkways placed yet</p>
+            </template>
+          </div>
         </div>
 
         <!-- Snap-to-Raster Grid Settings Panel -->
@@ -408,6 +445,16 @@
           <button id="btn-add-module" class="btn btn-solar btn-toolbar-primary" @click="addModule()" :title="t('btnAddModuleTitle')">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
             <span class="btn-text-responsive" x-text="t('btnAddModule')">Add Module</span>
+          </button>
+
+          <!-- Draw Walkway Tool Button -->
+          <button id="btn-draw-walkway" 
+                  class="btn" 
+                  :class="activeTool === 'draw_walkway' ? 'btn-solar active' : ''" 
+                  @click="toggleDrawWalkway()" 
+                  :title="t('btnDrawWalkwayTitle')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19h16"/><path d="M4 5h16"/><path d="M8 5v14"/><path d="M16 5v14"/><path d="M12 9v2"/><path d="M12 13v2"/></svg>
+            <span class="btn-text-responsive" x-text="t('btnDrawWalkway')">Draw Walkway</span>
           </button>
 
           <div class="divider-v"></div>
@@ -515,7 +562,7 @@
 
           <!-- Transform & Edit Actions -->
           <div class="btn-group">
-            <button id="btn-rotate-module" class="btn" :disabled="selectedIds.length === 0" @click="rotateSelected()" :title="t('btnRotateTitle')">
+            <button id="btn-rotate-module" class="btn" :disabled="selectedIds.length === 0 && !selectedWalkwayId" @click="rotateSelected()" :title="t('btnRotateTitle')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
               <span class="btn-text-responsive" x-text="t('btnRotate')">Rotate (R)</span>
             </button>
@@ -523,7 +570,7 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="13" height="13" x="9" y="9" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               <span class="btn-text-responsive" x-text="t('btnDuplicate')">Duplicate</span>
             </button>
-            <button id="btn-delete-module" class="btn" :disabled="selectedIds.length === 0" @click="deleteSelected()" :title="t('btnDeleteTitle')">
+            <button id="btn-delete-module" class="btn" :disabled="selectedIds.length === 0 && !selectedWalkwayId" @click="deleteSelected()" :title="t('btnDeleteTitle')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
               <span class="btn-text-responsive" x-text="t('btnDelete')">Delete</span>
             </button>
@@ -546,8 +593,19 @@
           </div>
         </div>
 
+        <!-- Active Draw Mode Notification Banner -->
+        <div class="draw-mode-banner" x-show="activeTool === 'draw_walkway'" x-transition style="display: none;">
+          <div class="draw-mode-info">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            <span x-text="t('hintDrawWalkwayBar')">Draw Walkway Active — Click & drag on roof to place corridor</span>
+          </div>
+          <button type="button" class="btn-banner-exit" @click="activeTool = 'select'">
+            <span x-text="lang === 'de' ? 'Beenden (Esc)' : 'Exit (Esc)'">Exit (Esc)</span>
+          </button>
+        </div>
+
         <!-- The Interactive Vector SVG Canvas -->
-        <svg id="roof-canvas-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <svg id="roof-canvas-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet" :class="activeTool === 'draw_walkway' ? 'tool-draw-walkway' : ''">
           <defs>
             <!-- Solar Cell Sapphire Blue Gradient -->
             <linearGradient id="pv-cell-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -613,6 +671,9 @@
           <!-- Magnetic Snap CAD Guides Layer -->
           <g id="snap-guides-layer"></g>
 
+          <!-- Drawing Preview Layer for Walkways and Shapes -->
+          <g id="drawing-preview-layer" style="pointer-events: none;"></g>
+
           <!-- Modules Placement Layer (dynamically rendered for high performance and compatibility) -->
           <g id="modules-layer"></g>
         </svg>
@@ -632,6 +693,10 @@
 
         <!-- Floating Quick Hints Bar (Bottom Left) -->
         <div class="bottom-hints-bar">
+          <div class="hint-chip">
+            <span class="kbd-badge">W</span>
+            <span x-text="t('drawWalkwayBadge')">Draw Walkway (W)</span>
+          </div>
           <div class="hint-chip">
             <span class="kbd-badge">Drag</span>
             <span x-text="t('hintMove')">Move Module</span>

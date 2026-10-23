@@ -1067,6 +1067,15 @@ input:checked + .slider-round:before {
   pointer-events: none;
 }
 
+.walkway-group.custom-walkway {
+  pointer-events: all;
+  cursor: grab;
+}
+
+.walkway-group.custom-walkway:active {
+  cursor: grabbing;
+}
+
 .walkway-corridor {
   fill: rgba(248, 250, 252, 0.9);
   stroke: #94A3B8;
@@ -1074,10 +1083,40 @@ input:checked + .slider-round:before {
   stroke-dasharray: 0.1 0.05;
 }
 
+.walkway-corridor.custom-corridor {
+  fill: rgba(254, 243, 199, 0.6);
+  stroke: #D97706;
+  stroke-width: 0.02;
+  stroke-dasharray: none;
+  transition: fill 0.15s ease, stroke 0.15s ease;
+}
+
+.walkway-group.custom-walkway:hover .custom-corridor {
+  fill: rgba(254, 243, 199, 0.9);
+  stroke: #B45309;
+}
+
+.walkway-group.custom-walkway.selected .custom-corridor {
+  fill: rgba(253, 230, 138, 0.95);
+  stroke: #D97706;
+  stroke-width: 0.035;
+  filter: drop-shadow(0 0 0.05 rgba(217, 119, 6, 0.5));
+}
+
+.walkway-border-line {
+  pointer-events: none;
+}
+
 .walkway-centerline {
   stroke: #64748B;
   stroke-width: 0.01;
   stroke-dasharray: 0.12 0.06;
+  pointer-events: none;
+}
+
+.walkway-centerline.selected {
+  stroke: #B45309;
+  stroke-width: 0.018;
 }
 
 .walkway-annotation {
@@ -1088,6 +1127,82 @@ input:checked + .slider-round:before {
   text-anchor: middle;
   dominant-baseline: central;
   letter-spacing: 0.01em;
+  pointer-events: none;
+  user-select: none;
+}
+
+.walkway-annotation.selected {
+  fill: #78350F;
+  font-weight: 800;
+}
+
+/* Walkway Draw Tool Cursor & Preview */
+.tool-draw-walkway {
+  cursor: crosshair !important;
+}
+
+.walkway-preview-group {
+  pointer-events: none;
+}
+
+/* Floating Draw Mode Active Banner */
+.draw-mode-banner {
+  position: absolute;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  background: rgba(254, 243, 199, 0.96);
+  border: 1px solid #D97706;
+  color: #92400E;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.25);
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  backdrop-filter: blur(8px);
+  animation: bannerSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bannerSlideDown {
+  from { opacity: 0; transform: translate(-50%, -10px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.draw-mode-info {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.draw-mode-info svg {
+  color: #D97706;
+  flex-shrink: 0;
+}
+
+.btn-banner-exit {
+  background: #D97706;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 9999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-banner-exit:hover {
+  background: #B45309;
+}
+
+.custom-walkway-item.selected {
+  border-color: #D97706 !important;
+  background: rgba(217, 119, 6, 0.08) !important;
+  box-shadow: 0 0 0 1px #D97706;
 }
 
 /* CAD Smart Magnetic Snap Alignment Guides */

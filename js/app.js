@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=23';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=24';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,9 +12,9 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=23';
-import { SvgCanvasManager } from './canvas.js?v=23';
-import { translate } from './i18n.js?v=23';
+} from './layout.js?v=24';
+import { SvgCanvasManager } from './canvas.js?v=24';
+import { translate } from './i18n.js?v=24';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -57,11 +57,15 @@ document.addEventListener('alpine:init', () => {
 
     walkway: {
       enabled: false,
-      width: 0.10,          // meters (starts at 0.1m)
+      width: 0.80,          // meters (starts at 0.80m)
       interval: 2,           // every 2 rows
       direction: 'horizontal', // 'horizontal' | 'vertical' | 'both'
-      corridors: []
+      corridors: [],
+      customCorridors: []   // custom user-drawn walkways
     },
+
+    activeTool: 'select',    // 'select' | 'draw_walkway'
+    selectedWalkwayId: null, // ID of currently selected custom walkway
 
     module: {
       width: 1134,      // mm
@@ -153,7 +157,10 @@ document.addEventListener('alpine:init', () => {
             selectedIds: this.selectedIds,
             grid: this.grid,
             roof: this.roof,
-            module: this.module
+            module: this.module,
+            walkway: this.walkway,
+            activeTool: this.activeTool,
+            selectedWalkwayId: this.selectedWalkwayId
           }),
           (newState) => {
             if (newState.modules) {
@@ -222,9 +229,7 @@ document.addEventListener('alpine:init', () => {
         if (this.canvasManager) {
           this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
           this.renderCanvasModules();
-          if (this.walkway && this.walkway.corridors) {
-            this.canvasManager.renderWalkways(this.walkway.corridors);
-          }
+          this.renderWalkways();
         }
       });
 
@@ -248,8 +253,25 @@ document.addEventListener('alpine:init', () => {
 
     // --- Validation, Collisions & Visual Sync ---
     refreshValidation() {
-      this.collidingIds = detectCollisions(this.modules, this.module);
+      this.collidingIds = detectCollisions(this.modules, this.module, this.walkway.customCorridors || []);
       this.renderCanvasModules();
+      this.renderWalkways();
+    },
+
+    renderWalkways() {
+      if (!this.canvasManager) return;
+      this.canvasManager.renderWalkways(
+        this.walkway.corridors || [],
+        this.walkway.customCorridors || [],
+        this.selectedWalkwayId,
+        {
+          onWalkwaySelect: (id, e) => this.selectWalkway(id, e),
+          onWalkwayMove: (id, newX, newY) => this.onWalkwayMove(id, newX, newY),
+          onWalkwayMoveEnd: (id, newX, newY) => this.onWalkwayMoveEnd(id, newX, newY),
+          onWalkwayCreated: (newWalkway) => this.onWalkwayCreated(newWalkway),
+          onBackgroundClick: (e) => this.onBackgroundClick(e)
+        }
+      );
     },
 
     renderCanvasModules() {
@@ -423,16 +445,20 @@ document.addEventListener('alpine:init', () => {
         this.autoBestStrategy = mode;
       }
       const step = this.grid.enabled ? this.grid.step : 0.05;
-      const result = calculateAutoFill(this.roof, this.module, mode, step, this.walkway);
+      const result = calculateAutoFill(
+        this.roof,
+        this.module,
+        mode,
+        step,
+        this.walkway,
+        this.walkway.customCorridors || []
+      );
 
       this.modules = result.modules;
       this.walkway.corridors = result.walkways || [];
       this.selectedIds = [];
       this.refreshValidation();
-
-      if (this.canvasManager) {
-        this.canvasManager.renderWalkways(this.walkway.corridors);
-      }
+      this.renderWalkways();
 
       const summaryText = this.formatLayoutSummary(result.summary || result.modeUsed);
       if (recordUndo) {
@@ -461,6 +487,20 @@ document.addEventListener('alpine:init', () => {
     },
 
     rotateSelected() {
+      if (this.selectedWalkwayId) {
+        const wk = (this.walkway.customCorridors || []).find(w => w.id === this.selectedWalkwayId);
+        if (wk) {
+          const oldW = wk.width;
+          wk.width = wk.height;
+          wk.height = oldW;
+          wk.direction = wk.direction === 'horizontal' ? 'vertical' : 'horizontal';
+          this.refreshValidation();
+          this.saveHistory('Rotate custom walkway');
+          this.showToast('Walkway orientation rotated');
+        }
+        return;
+      }
+
       if (this.selectedIds.length === 0) {
         this.showToast(this.lang === 'de' ? 'Wählen Sie Module zum Drehen aus' : 'Select one or more modules to rotate', 'info');
         return;
@@ -514,6 +554,15 @@ document.addEventListener('alpine:init', () => {
     },
 
     deleteSelected() {
+      if (this.selectedWalkwayId) {
+        this.walkway.customCorridors = (this.walkway.customCorridors || []).filter(w => w.id !== this.selectedWalkwayId);
+        this.selectedWalkwayId = null;
+        this.refreshValidation();
+        this.saveHistory(this.t('historyDeleteWalkway'));
+        this.showToast(this.t('toastWalkwayDeleted'));
+        return;
+      }
+
       if (this.selectedIds.length === 0) return;
       const count = this.selectedIds.length;
       this.modules = this.modules.filter(m => !this.selectedIds.includes(m.id));
@@ -521,6 +570,87 @@ document.addEventListener('alpine:init', () => {
       this.refreshValidation();
       this.saveHistory(this.t('historyDelete'));
       this.showToast(this.t('toastDeleted', { n: count }));
+    },
+
+    // --- Custom Walkway Operations ---
+    toggleDrawWalkway() {
+      if (this.activeTool === 'draw_walkway') {
+        this.activeTool = 'select';
+      } else {
+        this.activeTool = 'draw_walkway';
+        this.selectedWalkwayId = null;
+        this.selectedIds = [];
+        this.renderCanvasModules();
+        this.renderWalkways();
+        this.showToast(this.t('hintDrawWalkway'));
+      }
+    },
+
+    onWalkwayCreated(newWalkway) {
+      if (!this.walkway.customCorridors) {
+        this.walkway.customCorridors = [];
+      }
+      newWalkway.id = 'cwk_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+      this.walkway.customCorridors.push(newWalkway);
+      this.selectedWalkwayId = newWalkway.id;
+      this.activeTool = 'select';
+      this.refreshValidation();
+      this.saveHistory(this.t('historyAddWalkway'));
+      this.showToast(this.t('toastWalkwayCreated'));
+    },
+
+    selectWalkway(id) {
+      this.selectedWalkwayId = id;
+      this.selectedIds = [];
+      this.renderCanvasModules();
+      this.renderWalkways();
+    },
+
+    onWalkwayMove(id, newX, newY) {
+      const wk = (this.walkway.customCorridors || []).find(w => w.id === id);
+      if (wk) {
+        wk.x = newX;
+        wk.y = newY;
+      }
+    },
+
+    onWalkwayMoveEnd(id, newX, newY) {
+      const wk = (this.walkway.customCorridors || []).find(w => w.id === id);
+      if (wk) {
+        wk.x = newX;
+        wk.y = newY;
+      }
+      this.refreshValidation();
+      this.saveHistory(this.t('historyMoveWalkway'));
+    },
+
+    deleteCustomWalkway(id) {
+      this.walkway.customCorridors = (this.walkway.customCorridors || []).filter(w => w.id !== id);
+      if (this.selectedWalkwayId === id) {
+        this.selectedWalkwayId = null;
+      }
+      this.refreshValidation();
+      this.saveHistory(this.t('historyDeleteWalkway'));
+      this.showToast(this.t('toastWalkwayDeleted'));
+    },
+
+    clearCustomWalkways() {
+      if (!this.walkway.customCorridors || this.walkway.customCorridors.length === 0) return;
+      this.walkway.customCorridors = [];
+      this.selectedWalkwayId = null;
+      this.refreshValidation();
+      this.saveHistory('Clear custom walkways');
+      this.showToast(this.t('toastWalkwayDeleted'));
+    },
+
+    onBackgroundClick(e) {
+      if (this.selectedWalkwayId) {
+        this.selectedWalkwayId = null;
+        this.renderWalkways();
+      }
+      if (this.activeTool === 'draw_walkway' && e && e.button !== 0) {
+        this.activeTool = 'select';
+      }
     },
 
     clearAll() {
@@ -650,11 +780,14 @@ document.addEventListener('alpine:init', () => {
           return;
         }
 
-        if (e.key === 'r' || e.key === 'R') {
+        if (e.key === 'w' || e.key === 'W') {
+          e.preventDefault();
+          this.toggleDrawWalkway();
+        } else if (e.key === 'r' || e.key === 'R') {
           e.preventDefault();
           this.rotateSelected();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (this.selectedIds.length > 0) {
+          if (this.selectedIds.length > 0 || this.selectedWalkwayId) {
             e.preventDefault();
             this.deleteSelected();
           }
@@ -683,7 +816,16 @@ document.addEventListener('alpine:init', () => {
             this.redo();
           }
         } else if (e.key === 'Escape') {
-          this.deselectAll();
+          if (this.activeTool === 'draw_walkway') {
+            this.activeTool = 'select';
+            this.canvasManager?.clearWalkwayDrawPreview();
+            this.canvasManager?.renderSnapGuides([]);
+          } else if (this.selectedWalkwayId) {
+            this.selectedWalkwayId = null;
+            this.renderWalkways();
+          } else {
+            this.deselectAll();
+          }
         } else if (e.key === 'f' || e.key === 'F') {
           this.fitToRoof();
         }
@@ -1038,6 +1180,26 @@ document.addEventListener('alpine:init', () => {
             this.getModuleStatus(m)
           ]);
         });
+
+        if (this.walkway.customCorridors && this.walkway.customCorridors.length > 0) {
+          rows.push([]);
+          rows.push([isDe ? 'BENUTZERDEFINIERTE WARTUNGSGÄNGE' : 'CUSTOM MAINTENANCE WALKWAYS']);
+          rows.push(isDe
+            ? ['#', 'ID', 'Position X (m)', 'Position Y (m)', 'Breite (m)', 'Länge / Höhe (m)', 'Richtung']
+            : ['#', 'ID', 'Position X (m)', 'Position Y (m)', 'Width (m)', 'Length / Height (m)', 'Direction']
+          );
+          this.walkway.customCorridors.forEach((w, idx) => {
+            rows.push([
+              idx + 1,
+              w.id,
+              Number(w.x).toFixed(3),
+              Number(w.y).toFixed(3),
+              Number(w.width).toFixed(3),
+              Number(w.height).toFixed(3),
+              w.direction
+            ]);
+          });
+        }
 
         // Use UTF-8 Byte Order Mark (BOM) so Excel and spreadsheet apps correctly parse accents and characters
         const csvContent = '\uFEFF' + rows.map(r => r.map(escapeCSV).join(',')).join('\r\n');

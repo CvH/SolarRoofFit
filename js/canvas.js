@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid, calculateSmartSnap } from './layout.js?v=23';
+import { snapToGrid, calculateSmartSnap, calculateWalkwaySnap, calculateWalkwayDragSnap } from './layout.js?v=24';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -26,6 +26,10 @@ export class SvgCanvasManager {
     this.viewBoxStart = { ...this.viewBox };
 
     this.dragState = null;
+    this.isDrawingWalkway = false;
+    this.drawWalkwayStart = null;
+    this.walkwayDragState = null;
+    this.walkwayCallbacks = null;
     this.initListeners();
   }
 
@@ -118,11 +122,28 @@ export class SvgCanvasManager {
 
     // Background Pan on middle-click or background drag
     this.svg.addEventListener('pointerdown', (e) => {
+      const appState = this.getAppState ? this.getAppState() : {};
+
+      // Check if user is in Draw Walkway mode
+      if (appState.activeTool === 'draw_walkway') {
+        if (e.button === 0) {
+          this.isDrawingWalkway = true;
+          this.drawWalkwayStart = this.clientToMeters(e.clientX, e.clientY);
+          this.svg.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+
       // If clicking directly on svg background or grid layer
       const isBg = e.target === this.svg ||
                    e.target.id === 'canvas-bg' ||
                    e.target.id === 'roof-surface' ||
-                   e.target.classList.contains('canvas-background-layer');
+                   e.target.classList.contains('canvas-background-layer') ||
+                   e.target.id === 'roof-grid-overlay';
+
+      if (isBg && this.walkwayCallbacks && this.walkwayCallbacks.onBackgroundClick) {
+        this.walkwayCallbacks.onBackgroundClick(e);
+      }
 
       if (e.button === 1 || (e.button === 0 && isBg)) {
         this.isPanning = true;
@@ -134,6 +155,28 @@ export class SvgCanvasManager {
     });
 
     this.svg.addEventListener('pointermove', (e) => {
+      if (this.isDrawingWalkway) {
+        const appState = this.getAppState ? this.getAppState() : {};
+        const currentMeters = this.clientToMeters(e.clientX, e.clientY);
+        const snapResult = calculateWalkwaySnap(
+          this.drawWalkwayStart,
+          currentMeters,
+          appState.modules || [],
+          appState.module || {},
+          appState.roof || {},
+          appState.walkway?.width || 0.8,
+          appState.grid || {}
+        );
+        this.renderWalkwayDrawPreview(snapResult.walkway);
+        this.renderSnapGuides(snapResult.guides);
+        return;
+      }
+
+      if (this.walkwayDragState) {
+        this.handleWalkwayDragMove(e);
+        return;
+      }
+
       if (this.isPanning) {
         const rect = this.svg.getBoundingClientRect();
         const deltaPxX = e.clientX - this.panStart.x;
@@ -155,6 +198,33 @@ export class SvgCanvasManager {
     });
 
     const endPanOrDrag = (e) => {
+      if (this.isDrawingWalkway) {
+        this.isDrawingWalkway = false;
+        try { this.svg.releasePointerCapture(e.pointerId); } catch (_) {}
+        const appState = this.getAppState ? this.getAppState() : {};
+        const currentMeters = this.clientToMeters(e.clientX, e.clientY);
+        const snapResult = calculateWalkwaySnap(
+          this.drawWalkwayStart,
+          currentMeters,
+          appState.modules || [],
+          appState.module || {},
+          appState.roof || {},
+          appState.walkway?.width || 0.8,
+          appState.grid || {}
+        );
+        this.clearWalkwayDrawPreview();
+        this.renderSnapGuides([]);
+        if (this.walkwayCallbacks && this.walkwayCallbacks.onWalkwayCreated) {
+          this.walkwayCallbacks.onWalkwayCreated(snapResult.walkway);
+        }
+        return;
+      }
+
+      if (this.walkwayDragState) {
+        this.handleWalkwayDragEnd(e);
+        return;
+      }
+
       if (this.isPanning) {
         this.isPanning = false;
         try { this.svg.releasePointerCapture(e.pointerId); } catch (_) {}
@@ -415,30 +485,56 @@ export class SvgCanvasManager {
   /**
    * Renders maintenance walk space corridors onto the SVG canvas
    */
-  renderWalkways(walkways = []) {
+  renderWalkways(autoWalkways = [], customWalkways = [], selectedWalkwayId = null, callbacks = {}) {
+    this.walkwayCallbacks = callbacks;
     const layer = this.svg.querySelector('#walkways-layer');
     if (!layer) return;
 
     layer.innerHTML = '';
-    if (!walkways || walkways.length === 0) return;
+    const allWalkways = [
+      ...(autoWalkways || []).map(w => ({ ...w, isCustom: false })),
+      ...(customWalkways || []).map(w => ({ ...w, isCustom: true }))
+    ];
+
+    if (allWalkways.length === 0) return;
 
     const fragment = document.createDocumentFragment();
 
-    walkways.forEach(w => {
+    allWalkways.forEach(w => {
       const g = document.createElementNS(SVG_NS, 'g');
-      g.setAttribute('class', 'walkway-group');
+      const isSelected = w.isCustom && w.id === selectedWalkwayId;
+      g.setAttribute('class', `walkway-group ${w.isCustom ? 'custom-walkway' : 'auto-walkway'} ${isSelected ? 'selected' : ''}`);
+      if (w.id) g.setAttribute('data-walkway-id', w.id);
 
       const rect = document.createElementNS(SVG_NS, 'rect');
-      rect.setAttribute('class', 'walkway-corridor');
+      rect.setAttribute('class', `walkway-corridor ${w.isCustom ? 'custom-corridor' : ''} ${isSelected ? 'selected' : ''}`);
       rect.setAttribute('x', w.x.toFixed(4));
       rect.setAttribute('y', w.y.toFixed(4));
       rect.setAttribute('width', w.width.toFixed(4));
       rect.setAttribute('height', w.height.toFixed(4));
+      if (w.isCustom) {
+        rect.style.cursor = 'grab';
+      }
       g.appendChild(rect);
+
+      // Custom walkway dashed architectural borders
+      if (w.isCustom) {
+        const borderRect = document.createElementNS(SVG_NS, 'rect');
+        borderRect.setAttribute('class', `walkway-border-line ${isSelected ? 'selected' : ''}`);
+        borderRect.setAttribute('x', w.x.toFixed(4));
+        borderRect.setAttribute('y', w.y.toFixed(4));
+        borderRect.setAttribute('width', w.width.toFixed(4));
+        borderRect.setAttribute('height', w.height.toFixed(4));
+        borderRect.setAttribute('fill', 'none');
+        borderRect.setAttribute('stroke', isSelected ? '#D97706' : '#B45309');
+        borderRect.setAttribute('stroke-width', isSelected ? '0.035' : '0.02');
+        borderRect.setAttribute('stroke-dasharray', '0.12 0.08');
+        g.appendChild(borderRect);
+      }
 
       // Walkway dashed centerline
       const line = document.createElementNS(SVG_NS, 'line');
-      line.setAttribute('class', 'walkway-centerline');
+      line.setAttribute('class', `walkway-centerline ${isSelected ? 'selected' : ''}`);
       if (w.direction === 'vertical') {
         const midX = w.x + w.width / 2;
         line.setAttribute('x1', midX.toFixed(4));
@@ -456,17 +552,185 @@ export class SvgCanvasManager {
 
       // Walkway text annotation
       const text = document.createElementNS(SVG_NS, 'text');
-      text.setAttribute('class', 'walkway-annotation');
+      text.setAttribute('class', `walkway-annotation ${isSelected ? 'selected' : ''}`);
       text.setAttribute('x', (w.x + w.width / 2).toFixed(4));
       text.setAttribute('y', (w.y + w.height / 2).toFixed(4));
       const spanDim = w.direction === 'vertical' ? w.width : w.height;
-      text.textContent = `Walk Space (${spanDim.toFixed(2)}m)`;
+      text.textContent = w.isCustom 
+        ? `Walkway (${spanDim.toFixed(2)}m)` 
+        : `Walk Space (${spanDim.toFixed(2)}m)`;
       g.appendChild(text);
+
+      // Pointer event listener for custom walkway selection and dragging
+      if (w.isCustom) {
+        g.addEventListener('pointerdown', (e) => {
+          const appState = this.getAppState ? this.getAppState() : {};
+          if (appState.activeTool === 'draw_walkway') return;
+
+          e.stopPropagation();
+          e.preventDefault();
+          if (callbacks.onWalkwaySelect) {
+            callbacks.onWalkwaySelect(w.id, e);
+          }
+          this.startWalkwayDrag(w, e);
+        });
+      }
 
       fragment.appendChild(g);
     });
 
     layer.appendChild(fragment);
+  }
+
+  renderWalkwayDrawPreview(walkway) {
+    let layer = this.svg.querySelector('#drawing-preview-layer');
+    if (!layer) return;
+    layer.innerHTML = '';
+
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('class', 'walkway-preview-group');
+
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('class', 'walkway-draw-preview');
+    rect.setAttribute('x', walkway.x.toFixed(4));
+    rect.setAttribute('y', walkway.y.toFixed(4));
+    rect.setAttribute('width', walkway.width.toFixed(4));
+    rect.setAttribute('height', walkway.height.toFixed(4));
+    rect.setAttribute('fill', 'rgba(217, 119, 6, 0.22)');
+    rect.setAttribute('stroke', '#D97706');
+    rect.setAttribute('stroke-width', '0.03');
+    rect.setAttribute('stroke-dasharray', '0.1 0.05');
+    g.appendChild(rect);
+
+    const line = document.createElementNS(SVG_NS, 'line');
+    line.setAttribute('class', 'walkway-centerline');
+    line.setAttribute('stroke', '#D97706');
+    line.setAttribute('stroke-width', '0.02');
+    line.setAttribute('stroke-dasharray', '0.1 0.08');
+    if (walkway.direction === 'vertical') {
+      const midX = walkway.x + walkway.width / 2;
+      line.setAttribute('x1', midX.toFixed(4));
+      line.setAttribute('y1', walkway.y.toFixed(4));
+      line.setAttribute('x2', midX.toFixed(4));
+      line.setAttribute('y2', (walkway.y + walkway.height).toFixed(4));
+    } else {
+      const midY = walkway.y + walkway.height / 2;
+      line.setAttribute('x1', walkway.x.toFixed(4));
+      line.setAttribute('y1', midY.toFixed(4));
+      line.setAttribute('x2', (walkway.x + walkway.width).toFixed(4));
+      line.setAttribute('y2', midY.toFixed(4));
+    }
+    g.appendChild(line);
+
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('class', 'walkway-annotation');
+    text.setAttribute('x', (walkway.x + walkway.width / 2).toFixed(4));
+    text.setAttribute('y', (walkway.y + walkway.height / 2).toFixed(4));
+    text.setAttribute('fill', '#B45309');
+    text.setAttribute('font-size', '0.28');
+    text.setAttribute('font-weight', '700');
+    text.textContent = `New Walkway (${walkway.direction === 'vertical' ? walkway.width.toFixed(2) : walkway.height.toFixed(2)}m)`;
+    g.appendChild(text);
+
+    layer.appendChild(g);
+  }
+
+  clearWalkwayDrawPreview() {
+    const layer = this.svg.querySelector('#drawing-preview-layer');
+    if (layer) layer.innerHTML = '';
+  }
+
+  startWalkwayDrag(walkwayItem, event) {
+    const pointerMeters = this.clientToMeters(event.clientX, event.clientY);
+    this.walkwayDragState = {
+      pointerId: event.pointerId,
+      walkwayId: walkwayItem.id,
+      walkway: { ...walkwayItem },
+      startPointerMeters: pointerMeters,
+      initialPos: { x: walkwayItem.x, y: walkwayItem.y },
+      hasMoved: false,
+      lastSnappedPos: { x: walkwayItem.x, y: walkwayItem.y }
+    };
+
+    try {
+      this.svg.setPointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  handleWalkwayDragMove(event) {
+    if (!this.walkwayDragState) return;
+
+    const currentPointer = this.clientToMeters(event.clientX, event.clientY);
+    const deltaX = currentPointer.x - this.walkwayDragState.startPointerMeters.x;
+    const deltaY = currentPointer.y - this.walkwayDragState.startPointerMeters.y;
+
+    if (Math.hypot(deltaX, deltaY) > 0.05) {
+      this.walkwayDragState.hasMoved = true;
+    }
+
+    const rawTarget = {
+      x: this.walkwayDragState.initialPos.x + deltaX,
+      y: this.walkwayDragState.initialPos.y + deltaY
+    };
+
+    const appState = this.getAppState ? this.getAppState() : {};
+    const snapResult = calculateWalkwayDragSnap(
+      this.walkwayDragState.walkway,
+      rawTarget,
+      appState.modules || [],
+      appState.module || {},
+      appState.roof || {},
+      appState.grid || {}
+    );
+
+    this.walkwayDragState.lastSnappedPos = { x: snapResult.x, y: snapResult.y };
+    this.renderSnapGuides(snapResult.guides);
+
+    // Live update DOM position of moving walkway
+    const gEl = this.svg.querySelector(`g.custom-walkway[data-walkway-id="${this.walkwayDragState.walkwayId}"]`);
+    if (gEl) {
+      const rect = gEl.querySelector('rect.walkway-corridor');
+      const border = gEl.querySelector('rect.walkway-border-line');
+      const line = gEl.querySelector('line.walkway-centerline');
+      const text = gEl.querySelector('text.walkway-annotation');
+      const w = this.walkwayDragState.walkway;
+
+      if (rect) { rect.setAttribute('x', snapResult.x.toFixed(4)); rect.setAttribute('y', snapResult.y.toFixed(4)); }
+      if (border) { border.setAttribute('x', snapResult.x.toFixed(4)); border.setAttribute('y', snapResult.y.toFixed(4)); }
+      if (line) {
+        if (w.direction === 'vertical') {
+          const midX = snapResult.x + w.width / 2;
+          line.setAttribute('x1', midX.toFixed(4)); line.setAttribute('y1', snapResult.y.toFixed(4));
+          line.setAttribute('x2', midX.toFixed(4)); line.setAttribute('y2', (snapResult.y + w.height).toFixed(4));
+        } else {
+          const midY = snapResult.y + w.height / 2;
+          line.setAttribute('x1', snapResult.x.toFixed(4)); line.setAttribute('y1', midY.toFixed(4));
+          line.setAttribute('x2', (snapResult.x + w.width).toFixed(4)); line.setAttribute('y2', midY.toFixed(4));
+        }
+      }
+      if (text) {
+        text.setAttribute('x', (snapResult.x + w.width / 2).toFixed(4));
+        text.setAttribute('y', (snapResult.y + w.height / 2).toFixed(4));
+      }
+    }
+  }
+
+  handleWalkwayDragEnd(event) {
+    if (!this.walkwayDragState) return;
+
+    try {
+      this.svg.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+
+    this.renderSnapGuides([]);
+    const hasMoved = this.walkwayDragState.hasMoved;
+    const walkwayId = this.walkwayDragState.walkwayId;
+    const finalPos = this.walkwayDragState.lastSnappedPos;
+    this.walkwayDragState = null;
+
+    if (hasMoved && this.walkwayCallbacks && this.walkwayCallbacks.onWalkwayMoveEnd) {
+      this.walkwayCallbacks.onWalkwayMoveEnd(walkwayId, finalPos.x, finalPos.y);
+    }
   }
 
   /**
