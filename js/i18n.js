@@ -65,16 +65,16 @@ export const TRANSLATIONS = {
     dirWest: "Left (West)",
     dirEast: "Right (East)",
 
-    // Sidebar: PV Module Specs
-    panelModuleSpecs: "PV Module Specifications",
+    // Sidebar: PV Modules
+    panelModuleSpecs: "PV Modules",
     labelModulePreset: "Module Model Preset",
     labelModWidth: "Width",
     labelModHeight: "Length",
     labelModPower: "Peak Power",
     labelClampGap: "Clamp Gap",
 
-    // Sidebar: Maintenance Walkways
-    panelWalkways: "Maintenance Walkways",
+    // Sidebar: Walkways
+    panelWalkways: "Walkways",
     toggleWalkwayTitle: "Toggle maintenance walk space corridors",
     labelWalkwayWidth: "Walkway Corridor Width",
     labelWalkwayInterval: "Walkway Insertion Frequency",
@@ -113,8 +113,8 @@ export const TRANSLATIONS = {
     historyChangeWalkwayWidth: "Change walkway width to {width}m",
     toastWalkwayWidthChanged: "Walkway width set to {width}m",
 
-    // Obstacles Panel (Skylights & Chimneys)
-    panelObstacles: "Obstacles (Skylights & Chimneys)",
+    // Obstacles Panel
+    panelObstacles: "Obstacles",
     obstacleType: "Obstacle Type",
     typeSkylight: "Skylight / Window",
     typeChimney: "Chimney",
@@ -298,15 +298,15 @@ export const TRANSLATIONS = {
     dirWest: "Links (West)",
     dirEast: "Rechts (Ost)",
 
-    // Sidebar: PV Module Specs
-    panelModuleSpecs: "PV-Modul Spezifikationen",
+    // Sidebar: PV Modules
+    panelModuleSpecs: "PV-Module",
     labelModulePreset: "Modul-Voreinstellung",
     labelModWidth: "Breite",
     labelModHeight: "Länge",
     labelModPower: "Nennleistung",
     labelClampGap: "Klemmenabstand",
 
-    // Sidebar: Maintenance Walkways
+    // Sidebar: Walkways
     panelWalkways: "Wartungsgänge",
     toggleWalkwayTitle: "Wartungskorridore aktivieren/deaktivieren",
     labelWalkwayWidth: "Korridorbreite",
@@ -346,8 +346,8 @@ export const TRANSLATIONS = {
     historyChangeWalkwayWidth: "Wartungsgang-Breite auf {width}m geändert",
     toastWalkwayWidthChanged: "Wartungsgang-Breite auf {width}m gesetzt",
 
-    // Obstacles Panel (Skylights & Chimneys)
-    panelObstacles: "Dachaufbauten (Lichtkuppeln & Kamine)",
+    // Obstacles Panel
+    panelObstacles: "Dachaufbauten",
     obstacleType: "Aufbau-Typ",
     typeSkylight: "Lichtkuppel / Fenster",
     typeChimney: "Kamin / Schornstein",
