@@ -185,6 +185,68 @@ export function computeDimensionLayout(availableSpan, modSpan, baseGap, hasWalkw
 }
 
 /**
+ * Decomposes a rectangular usable area into disjoint non-overlapping rectangular sub-zones
+ * by subtracting obstacles (such as custom maintenance walkways) with safety clamp clearance.
+ *
+ * @param {Object} usableRect - { x, y, width, height }
+ * @param {Array} customWalkways - Array of walkway objects { x, y, width, height }
+ * @param {Number} gapX - Horizontal buffer / clamp gap
+ * @param {Number} gapY - Vertical buffer / clamp gap
+ * @returns {Array} Array of disjoint rectangular zones { x, y, width, height }
+ */
+export function decomposeUsableArea(usableRect, customWalkways = [], gapX = 0.02, gapY = 0.02) {
+  let zones = [usableRect];
+  const EPS = 0.005;
+
+  for (const obstacle of customWalkways) {
+    const nextZones = [];
+    const ox1 = obstacle.x - gapX;
+    const oy1 = obstacle.y - gapY;
+    const ox2 = obstacle.x + obstacle.width + gapX;
+    const oy2 = obstacle.y + obstacle.height + gapY;
+
+    for (const r of zones) {
+      const rx1 = r.x;
+      const ry1 = r.y;
+      const rx2 = r.x + r.width;
+      const ry2 = r.y + r.height;
+
+      // Check intersection
+      const ix1 = Math.max(rx1, ox1);
+      const iy1 = Math.max(ry1, oy1);
+      const ix2 = Math.min(rx2, ox2);
+      const iy2 = Math.min(ry2, oy2);
+
+      if (ix2 - ix1 <= EPS || iy2 - iy1 <= EPS) {
+        // No overlap with this zone, keep intact
+        nextZones.push(r);
+        continue;
+      }
+
+      // Top piece
+      if (iy1 - ry1 > EPS) {
+        nextZones.push({ x: rx1, y: ry1, width: r.width, height: iy1 - ry1 });
+      }
+      // Bottom piece
+      if (ry2 - iy2 > EPS) {
+        nextZones.push({ x: rx1, y: iy2, width: r.width, height: ry2 - iy2 });
+      }
+      // Left piece (vertical span between iy1 and iy2)
+      if (ix1 - rx1 > EPS) {
+        nextZones.push({ x: rx1, y: iy1, width: ix1 - rx1, height: iy2 - iy1 });
+      }
+      // Right piece (vertical span between iy1 and iy2)
+      if (rx2 - ix2 > EPS) {
+        nextZones.push({ x: ix2, y: iy1, width: rx2 - ix2, height: iy2 - iy1 });
+      }
+    }
+    zones = nextZones;
+  }
+
+  return zones;
+}
+
+/**
  * Calculates optimal 2D grid layout to maximize modules on the flat roof.
  * Respects 4-sided setbacks, clamp gaps, maintenance walkways, and raster alignment.
  */
@@ -269,6 +331,178 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
     };
   };
 
+  // --- Zone-Partitioned Auto-Fill for Custom Walkways ---
+  // When custom walkways divide the roof, partition the usable space into disjoint sub-zones
+  // around each walkway and pack each zone independently to maximize output and guarantee clean alignment.
+  if (customWalkways && customWalkways.length > 0) {
+    const usableRect = { x: sb.left, y: sb.top, width: usableWidth, height: usableLength };
+    const rawZones = decomposeUsableArea(usableRect, customWalkways, gapX, gapY);
+    const minSide = Math.min(w, h);
+    // Filter zones where at least one panel can physically fit
+    const zones = rawZones.filter(z => Math.max(z.width, z.height) >= minSide && Math.min(z.width, z.height) >= minSide);
+
+    if (zones.length === 0) {
+      return { modules: [], walkways: [], modeUsed: orientationMode, count: 0, summary: '0 modules (walkway obstruction)' };
+    }
+
+    // Helper to solve an individual partitioned zone
+    const solveZone = (z, mode) => {
+      if (z.width < minSide || z.height < minSide) {
+        return { count: 0, modules: [], totalSpanX: 0, totalSpanY: 0 };
+      }
+      const port = generateBlock(0, 0, z.width, z.height, w, h, 0, false, false);
+      const land = generateBlock(0, 0, z.width, z.height, h, w, 90, false, false);
+
+      if (mode === 'portrait') return port;
+      if (mode === 'landscape') return land;
+      if (mode === 'same' || mode === 'uniform') {
+        return land.count >= port.count ? land : port;
+      }
+
+      // Mixed / Optimal Mode inside sub-zone:
+      const candList = [port, land];
+
+      // Horizontal splits
+      for (let r1 = 1; r1 < port.rows; r1++) {
+        const hTop = port.rowLayout.offsets[r1 - 1] + h;
+        const topBlock = generateBlock(0, 0, z.width, hTop, w, h, 0, false, false);
+        const remH = z.height - (hTop + gapY);
+        if (remH >= w) {
+          const bottomBlock = generateBlock(0, hTop + gapY, z.width, remH, h, w, 90, false, false);
+          if (bottomBlock.count > 0) {
+            candList.push({
+              count: topBlock.count + bottomBlock.count,
+              modules: [...topBlock.modules, ...bottomBlock.modules],
+              totalSpanX: Math.max(topBlock.totalSpanX, bottomBlock.totalSpanX),
+              totalSpanY: hTop + gapY + bottomBlock.totalSpanY
+            });
+          }
+        }
+      }
+      for (let r1 = 1; r1 < land.rows; r1++) {
+        const hTop = land.rowLayout.offsets[r1 - 1] + w;
+        const topBlock = generateBlock(0, 0, z.width, hTop, h, w, 90, false, false);
+        const remH = z.height - (hTop + gapY);
+        if (remH >= h) {
+          const bottomBlock = generateBlock(0, hTop + gapY, z.width, remH, w, h, 0, false, false);
+          if (bottomBlock.count > 0) {
+            candList.push({
+              count: topBlock.count + bottomBlock.count,
+              modules: [...topBlock.modules, ...bottomBlock.modules],
+              totalSpanX: Math.max(topBlock.totalSpanX, bottomBlock.totalSpanX),
+              totalSpanY: hTop + gapY + bottomBlock.totalSpanY
+            });
+          }
+        }
+      }
+
+      // Vertical splits
+      for (let c1 = 1; c1 < port.cols; c1++) {
+        const wLeft = port.colLayout.offsets[c1 - 1] + w;
+        const leftBlock = generateBlock(0, 0, wLeft, z.height, w, h, 0, false, false);
+        const remW = z.width - (wLeft + gapX);
+        if (remW >= h) {
+          const rightBlock = generateBlock(wLeft + gapX, 0, remW, z.height, h, w, 90, false, false);
+          if (rightBlock.count > 0) {
+            candList.push({
+              count: leftBlock.count + rightBlock.count,
+              modules: [...leftBlock.modules, ...rightBlock.modules],
+              totalSpanX: wLeft + gapX + rightBlock.totalSpanX,
+              totalSpanY: Math.max(leftBlock.totalSpanY, rightBlock.totalSpanY)
+            });
+          }
+        }
+      }
+      for (let c1 = 1; c1 < land.cols; c1++) {
+        const wLeft = land.colLayout.offsets[c1 - 1] + h;
+        const leftBlock = generateBlock(0, 0, wLeft, z.height, h, w, 90, false, false);
+        const remW = z.width - (wLeft + gapX);
+        if (remW >= w) {
+          const rightBlock = generateBlock(wLeft + gapX, 0, remW, z.height, w, h, 0, false, false);
+          if (rightBlock.count > 0) {
+            candList.push({
+              count: leftBlock.count + rightBlock.count,
+              modules: [...leftBlock.modules, ...rightBlock.modules],
+              totalSpanX: wLeft + gapX + rightBlock.totalSpanX,
+              totalSpanY: Math.max(leftBlock.totalSpanY, rightBlock.totalSpanY)
+            });
+          }
+        }
+      }
+
+      let best = land.count >= port.count ? land : port;
+      for (const cand of candList) {
+        if (cand.count > best.count) {
+          best = cand;
+        }
+      }
+      return best;
+    };
+
+    // If 'same', decide globally best pure orientation across all zones
+    let effectiveMode = orientationMode;
+    if (orientationMode === 'same' || orientationMode === 'uniform') {
+      let totalPort = 0;
+      let totalLand = 0;
+      zones.forEach(z => {
+        totalPort += solveZone(z, 'portrait').count;
+        totalLand += solveZone(z, 'landscape').count;
+      });
+      effectiveMode = totalLand >= totalPort ? 'landscape' : 'portrait';
+    }
+
+    const timestamp = Date.now();
+    let idCounter = 1;
+    const allFinalModules = [];
+    let portCount = 0;
+    let landCount = 0;
+
+    zones.forEach(z => {
+      const zSol = solveZone(z, effectiveMode);
+      if (!zSol || zSol.count === 0) return;
+
+      const spanX = zSol.totalSpanX;
+      const spanY = zSol.totalSpanY;
+      let startX = z.x + Math.max(0, (z.width - spanX) / 2);
+      let startY = z.y + Math.max(0, (z.height - spanY) / 2);
+
+      startX = snapToGrid(startX, gridStep);
+      startY = snapToGrid(startY, gridStep);
+
+      // Clamp strictly within zone boundaries
+      startX = Math.max(z.x, Math.min(z.x + z.width - spanX, startX));
+      startY = Math.max(z.y, Math.min(z.y + z.height - spanY, startY));
+
+      zSol.modules.forEach(m => {
+        if (m.rotation === 90) landCount++; else portCount++;
+        allFinalModules.push({
+          id: `pv-${timestamp}-${idCounter++}`,
+          x: Number((startX + m.x).toFixed(4)),
+          y: Number((startY + m.y).toFixed(4)),
+          rotation: m.rotation,
+          selected: false
+        });
+      });
+    });
+
+    let summaryText = `${allFinalModules.length} modules`;
+    if (effectiveMode === 'portrait' || (portCount > 0 && landCount === 0)) {
+      summaryText = `${allFinalModules.length} portrait`;
+    } else if (effectiveMode === 'landscape' || (landCount > 0 && portCount === 0)) {
+      summaryText = `${allFinalModules.length} landscape`;
+    } else {
+      summaryText = `${portCount} portrait + ${landCount} landscape (mixed)`;
+    }
+
+    return {
+      modules: allFinalModules,
+      walkways: [],
+      modeUsed: effectiveMode,
+      summary: summaryText,
+      count: allFinalModules.length
+    };
+  }
+
   // Pure Baselines across the entire usable roof
   const purePort = generateBlock(0, 0, usableWidth, usableLength, w, h, 0, hasVWalkways, hasHWalkways);
   const candPurePortrait = {
@@ -332,6 +566,9 @@ export function calculateAutoFill(roofConfig, moduleConfig, orientationMode = 'o
 
     const deltaX = startX - minX;
     const deltaY = startY - minY;
+
+    const timestamp = Date.now();
+    let idCounter = 1;
 
     let finalizedModules = mods.map(m => ({
       id: `pv-${timestamp}-${idCounter++}`,
@@ -646,7 +883,8 @@ export function calculateSmartSnap(
   selectedIds = [],
   moduleConfig = {},
   gridConfig = {},
-  bypassSnap = false
+  bypassSnap = false,
+  customWalkways = []
 ) {
   if (bypassSnap) {
     return {
@@ -679,139 +917,262 @@ export function calculateSmartSnap(
 
   const snapToPanels = gridConfig && gridConfig.snapToPanels !== false;
 
-  if (snapToPanels && stationary.length > 0) {
+  if (snapToPanels) {
     const curTop = rawTarget.y;
     const curBottom = rawTarget.y + modH;
     const curLeft = rawTarget.x;
     const curRight = rawTarget.x + modW;
 
-    stationary.forEach(neighbor => {
-      const nBounds = getModuleBounds(neighbor, moduleConfig);
+    // 1. Snap to Stationary PV Panels
+    if (stationary.length > 0) {
+      stationary.forEach(neighbor => {
+        const nBounds = getModuleBounds(neighbor, moduleConfig);
 
-      // Check vertical proximity for horizontal alignment candidates
-      const vOverlap = Math.max(0, Math.min(curBottom, nBounds.bottom) - Math.max(curTop, nBounds.y));
-      const vDistance = Math.max(0, Math.max(curTop - nBounds.bottom, nBounds.y - curBottom));
+        // Check vertical proximity for horizontal alignment candidates
+        const vOverlap = Math.max(0, Math.min(curBottom, nBounds.bottom) - Math.max(curTop, nBounds.y));
+        const vDistance = Math.max(0, Math.max(curTop - nBounds.bottom, nBounds.y - curBottom));
 
-      if (vOverlap > 0 || vDistance <= 0.3) {
-        // X candidates:
-        const xCandidates = [
-          // 1. Right side of neighbor + clamp gap (e.g. 20mm)
-          {
-            x: nBounds.right + gapX,
-            type: 'gap',
-            label: `${(gapX * 1000).toFixed(0)}mm Gap`,
-            guideX: nBounds.right + (gapX / 2),
-            y1: Math.min(curTop, nBounds.y),
-            y2: Math.max(curBottom, nBounds.bottom)
-          },
-          // 2. Left side of neighbor - moving width - clamp gap
-          {
-            x: nBounds.x - modW - gapX,
-            type: 'gap',
-            label: `${(gapX * 1000).toFixed(0)}mm Gap`,
-            guideX: nBounds.x - (gapX / 2),
-            y1: Math.min(curTop, nBounds.y),
-            y2: Math.max(curBottom, nBounds.bottom)
-          },
-          // 3. Flush Align Left edge
-          {
-            x: nBounds.x,
-            type: 'flush',
-            label: 'Flush Left',
-            guideX: nBounds.x,
-            y1: Math.min(curTop, nBounds.y) - 0.15,
-            y2: Math.max(curBottom, nBounds.bottom) + 0.15
-          },
-          // 4. Flush Align Right edge
-          {
-            x: nBounds.right - modW,
-            type: 'flush',
-            label: 'Flush Right',
-            guideX: nBounds.right,
-            y1: Math.min(curTop, nBounds.y) - 0.15,
-            y2: Math.max(curBottom, nBounds.bottom) + 0.15
-          }
-        ];
+        if (vOverlap > 0 || vDistance <= 0.3) {
+          const xCandidates = [
+            {
+              x: nBounds.right + gapX,
+              type: 'gap',
+              label: `${(gapX * 1000).toFixed(0)}mm Gap`,
+              guideX: nBounds.right + (gapX / 2),
+              y1: Math.min(curTop, nBounds.y),
+              y2: Math.max(curBottom, nBounds.bottom)
+            },
+            {
+              x: nBounds.x - modW - gapX,
+              type: 'gap',
+              label: `${(gapX * 1000).toFixed(0)}mm Gap`,
+              guideX: nBounds.x - (gapX / 2),
+              y1: Math.min(curTop, nBounds.y),
+              y2: Math.max(curBottom, nBounds.bottom)
+            },
+            {
+              x: nBounds.x,
+              type: 'flush',
+              label: 'Flush Left',
+              guideX: nBounds.x,
+              y1: Math.min(curTop, nBounds.y) - 0.15,
+              y2: Math.max(curBottom, nBounds.bottom) + 0.15
+            },
+            {
+              x: nBounds.right - modW,
+              type: 'flush',
+              label: 'Flush Right',
+              guideX: nBounds.right,
+              y1: Math.min(curTop, nBounds.y) - 0.15,
+              y2: Math.max(curBottom, nBounds.bottom) + 0.15
+            }
+          ];
 
-        xCandidates.forEach(cand => {
-          const diff = Math.abs(rawTarget.x - cand.x);
-          if (diff < minDiffX) {
-            minDiffX = diff;
-            bestX = cand.x;
-            bestXGuide = {
-              axis: 'x',
-              pos: cand.guideX,
-              label: cand.label,
-              type: cand.type,
-              y1: cand.y1,
-              y2: cand.y2
-            };
-          }
-        });
-      }
+          xCandidates.forEach(cand => {
+            const diff = Math.abs(rawTarget.x - cand.x);
+            if (diff < minDiffX) {
+              minDiffX = diff;
+              bestX = cand.x;
+              bestXGuide = {
+                axis: 'x',
+                pos: cand.guideX,
+                label: cand.label,
+                type: cand.type,
+                y1: cand.y1,
+                y2: cand.y2
+              };
+            }
+          });
+        }
 
-      // Check horizontal proximity for vertical alignment candidates
-      const hOverlap = Math.max(0, Math.min(curRight, nBounds.right) - Math.max(curLeft, nBounds.x));
-      const hDistance = Math.max(0, Math.max(curLeft - nBounds.right, nBounds.x - curRight));
+        // Check horizontal proximity for vertical alignment candidates
+        const hOverlap = Math.max(0, Math.min(curRight, nBounds.right) - Math.max(curLeft, nBounds.x));
+        const hDistance = Math.max(0, Math.max(curLeft - nBounds.right, nBounds.x - curRight));
 
-      if (hOverlap > 0 || hDistance <= 0.3) {
-        // Y candidates:
-        const yCandidates = [
-          // 1. Below neighbor + clamp gap (e.g. 20mm)
-          {
-            y: nBounds.bottom + gapY,
-            type: 'gap',
-            label: `${(gapY * 1000).toFixed(0)}mm Gap`,
-            guideY: nBounds.bottom + (gapY / 2),
-            x1: Math.min(curLeft, nBounds.x),
-            x2: Math.max(curRight, nBounds.right)
-          },
-          // 2. Above neighbor - moving height - clamp gap
-          {
-            y: nBounds.y - modH - gapY,
-            type: 'gap',
-            label: `${(gapY * 1000).toFixed(0)}mm Gap`,
-            guideY: nBounds.y - (gapY / 2),
-            x1: Math.min(curLeft, nBounds.x),
-            x2: Math.max(curRight, nBounds.right)
-          },
-          // 3. Flush Align Top edge
-          {
-            y: nBounds.y,
-            type: 'flush',
-            label: 'Flush Top',
-            guideY: nBounds.y,
-            x1: Math.min(curLeft, nBounds.x) - 0.15,
-            x2: Math.max(curRight, nBounds.right) + 0.15
-          },
-          // 4. Flush Align Bottom edge
-          {
-            y: nBounds.bottom - modH,
-            type: 'flush',
-            label: 'Flush Bottom',
-            guideY: nBounds.bottom,
-            x1: Math.min(curLeft, nBounds.x) - 0.15,
-            x2: Math.max(curRight, nBounds.right) + 0.15
-          }
-        ];
+        if (hOverlap > 0 || hDistance <= 0.3) {
+          const yCandidates = [
+            {
+              y: nBounds.bottom + gapY,
+              type: 'gap',
+              label: `${(gapY * 1000).toFixed(0)}mm Gap`,
+              guideY: nBounds.bottom + (gapY / 2),
+              x1: Math.min(curLeft, nBounds.x),
+              x2: Math.max(curRight, nBounds.right)
+            },
+            {
+              y: nBounds.y - modH - gapY,
+              type: 'gap',
+              label: `${(gapY * 1000).toFixed(0)}mm Gap`,
+              guideY: nBounds.y - (gapY / 2),
+              x1: Math.min(curLeft, nBounds.x),
+              x2: Math.max(curRight, nBounds.right)
+            },
+            {
+              y: nBounds.y,
+              type: 'flush',
+              label: 'Flush Top',
+              guideY: nBounds.y,
+              x1: Math.min(curLeft, nBounds.x) - 0.15,
+              x2: Math.max(curRight, nBounds.right) + 0.15
+            },
+            {
+              y: nBounds.bottom - modH,
+              type: 'flush',
+              label: 'Flush Bottom',
+              guideY: nBounds.bottom,
+              x1: Math.min(curLeft, nBounds.x) - 0.15,
+              x2: Math.max(curRight, nBounds.right) + 0.15
+            }
+          ];
 
-        yCandidates.forEach(cand => {
-          const diff = Math.abs(rawTarget.y - cand.y);
-          if (diff < minDiffY) {
-            minDiffY = diff;
-            bestY = cand.y;
-            bestYGuide = {
-              axis: 'y',
-              pos: cand.guideY,
-              label: cand.label,
-              type: cand.type,
-              x1: cand.x1,
-              x2: cand.x2
-            };
-          }
-        });
-      }
-    });
+          yCandidates.forEach(cand => {
+            const diff = Math.abs(rawTarget.y - cand.y);
+            if (diff < minDiffY) {
+              minDiffY = diff;
+              bestY = cand.y;
+              bestYGuide = {
+                axis: 'y',
+                pos: cand.guideY,
+                label: cand.label,
+                type: cand.type,
+                x1: cand.x1,
+                x2: cand.x2
+              };
+            }
+          });
+        }
+      });
+    }
+
+    // 2. Snap to Custom Walkways (Clamp Gap & Flush Edges)
+    if (customWalkways && customWalkways.length > 0) {
+      customWalkways.forEach(cw => {
+        const cwRight = cw.x + cw.width;
+        const cwBottom = cw.y + cw.height;
+
+        // Check vertical proximity for horizontal (X) alignment candidates
+        const vOverlap = Math.max(0, Math.min(curBottom, cwBottom) - Math.max(curTop, cw.y));
+        const vDistance = Math.max(0, Math.max(curTop - cwBottom, cw.y - curBottom));
+
+        if (vOverlap > 0 || vDistance <= 0.35) {
+          const xCandidates = [
+            // Right side of walkway + clamp gap
+            {
+              x: cwRight + gapX,
+              type: 'gap',
+              label: `Walkway + ${(gapX * 1000).toFixed(0)}mm Gap`,
+              guideX: cwRight + (gapX / 2),
+              y1: Math.min(curTop, cw.y),
+              y2: Math.max(curBottom, cwBottom)
+            },
+            // Left side of walkway - modW - clamp gap
+            {
+              x: cw.x - modW - gapX,
+              type: 'gap',
+              label: `Walkway + ${(gapX * 1000).toFixed(0)}mm Gap`,
+              guideX: cw.x - (gapX / 2),
+              y1: Math.min(curTop, cw.y),
+              y2: Math.max(curBottom, cwBottom)
+            },
+            // Flush Left with walkway
+            {
+              x: cw.x,
+              type: 'flush',
+              label: 'Walkway Flush Left',
+              guideX: cw.x,
+              y1: Math.min(curTop, cw.y) - 0.15,
+              y2: Math.max(curBottom, cwBottom) + 0.15
+            },
+            // Flush Right with walkway
+            {
+              x: cwRight - modW,
+              type: 'flush',
+              label: 'Walkway Flush Right',
+              guideX: cwRight,
+              y1: Math.min(curTop, cw.y) - 0.15,
+              y2: Math.max(curBottom, cwBottom) + 0.15
+            }
+          ];
+
+          xCandidates.forEach(cand => {
+            const diff = Math.abs(rawTarget.x - cand.x);
+            if (diff < minDiffX) {
+              minDiffX = diff;
+              bestX = cand.x;
+              bestXGuide = {
+                axis: 'x',
+                pos: cand.guideX,
+                label: cand.label,
+                type: cand.type,
+                y1: cand.y1,
+                y2: cand.y2
+              };
+            }
+          });
+        }
+
+        // Check horizontal proximity for vertical (Y) alignment candidates
+        const hOverlap = Math.max(0, Math.min(curRight, cwRight) - Math.max(curLeft, cw.x));
+        const hDistance = Math.max(0, Math.max(curLeft - cwRight, cw.x - curRight));
+
+        if (hOverlap > 0 || hDistance <= 0.35) {
+          const yCandidates = [
+            // Below walkway + clamp gap
+            {
+              y: cwBottom + gapY,
+              type: 'gap',
+              label: `Walkway + ${(gapY * 1000).toFixed(0)}mm Gap`,
+              guideY: cwBottom + (gapY / 2),
+              x1: Math.min(curLeft, cw.x),
+              x2: Math.max(curRight, cwRight)
+            },
+            // Above walkway - modH - clamp gap
+            {
+              y: cw.y - modH - gapY,
+              type: 'gap',
+              label: `Walkway + ${(gapY * 1000).toFixed(0)}mm Gap`,
+              guideY: cw.y - (gapY / 2),
+              x1: Math.min(curLeft, cw.x),
+              x2: Math.max(curRight, cwRight)
+            },
+            // Flush Top with walkway
+            {
+              y: cw.y,
+              type: 'flush',
+              label: 'Walkway Flush Top',
+              guideY: cw.y,
+              x1: Math.min(curLeft, cw.x) - 0.15,
+              x2: Math.max(curRight, cwRight) + 0.15
+            },
+            // Flush Bottom with walkway
+            {
+              y: cwBottom - modH,
+              type: 'flush',
+              label: 'Walkway Flush Bottom',
+              guideY: cwBottom,
+              x1: Math.min(curLeft, cw.x) - 0.15,
+              x2: Math.max(curRight, cwRight) + 0.15
+            }
+          ];
+
+          yCandidates.forEach(cand => {
+            const diff = Math.abs(rawTarget.y - cand.y);
+            if (diff < minDiffY) {
+              minDiffY = diff;
+              bestY = cand.y;
+              bestYGuide = {
+                axis: 'y',
+                pos: cand.guideY,
+                label: cand.label,
+                type: cand.type,
+                x1: cand.x1,
+                x2: cand.x2
+              };
+            }
+          });
+        }
+      });
+    }
   }
 
   // Fallback to raster grid snapping if not snapped to neighbor

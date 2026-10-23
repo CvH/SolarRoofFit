@@ -2,7 +2,7 @@
  * SVG Canvas Manager: Pan, Zoom, Coordinate Systems & Drag Interaction
  */
 
-import { snapToGrid, calculateSmartSnap, calculateWalkwaySnap, calculateWalkwayDragSnap } from './layout.js?v=24';
+import { snapToGrid, calculateSmartSnap, calculateWalkwaySnap, calculateWalkwayDragSnap } from './layout.js?v=26';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -311,7 +311,8 @@ export class SvgCanvasManager {
       appState.selectedIds || [this.dragState.primaryId],
       appState.module || {},
       appState.grid || {},
-      event.altKey // Hold Alt key to temporarily bypass all snapping
+      event.altKey, // Hold Alt key to temporarily bypass all snapping
+      appState.walkway?.customCorridors || []
     );
 
     const effectiveDeltaX = snapResult.x - primaryInit.x;

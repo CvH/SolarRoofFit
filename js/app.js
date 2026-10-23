@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=24';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=26';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -12,9 +12,9 @@ import {
   detectCollisions,
   calculateAutoFill,
   findFreeSpawnPosition
-} from './layout.js?v=24';
-import { SvgCanvasManager } from './canvas.js?v=24';
-import { translate } from './i18n.js?v=24';
+} from './layout.js?v=26';
+import { SvgCanvasManager } from './canvas.js?v=26';
+import { translate } from './i18n.js?v=26';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -494,7 +494,7 @@ document.addEventListener('alpine:init', () => {
           wk.width = wk.height;
           wk.height = oldW;
           wk.direction = wk.direction === 'horizontal' ? 'vertical' : 'horizontal';
-          this.refreshValidation();
+          this.runAutoFill(this.autoFillMode, false);
           this.saveHistory('Rotate custom walkway');
           this.showToast('Walkway orientation rotated');
         }
@@ -557,7 +557,7 @@ document.addEventListener('alpine:init', () => {
       if (this.selectedWalkwayId) {
         this.walkway.customCorridors = (this.walkway.customCorridors || []).filter(w => w.id !== this.selectedWalkwayId);
         this.selectedWalkwayId = null;
-        this.refreshValidation();
+        this.runAutoFill(this.autoFillMode, false);
         this.saveHistory(this.t('historyDeleteWalkway'));
         this.showToast(this.t('toastWalkwayDeleted'));
         return;
@@ -594,7 +594,8 @@ document.addEventListener('alpine:init', () => {
       this.walkway.customCorridors.push(newWalkway);
       this.selectedWalkwayId = newWalkway.id;
       this.activeTool = 'select';
-      this.refreshValidation();
+      // Automatically re-align panels around the newly drawn walkway
+      this.runAutoFill(this.autoFillMode, false);
       this.saveHistory(this.t('historyAddWalkway'));
       this.showToast(this.t('toastWalkwayCreated'));
     },
@@ -620,7 +621,8 @@ document.addEventListener('alpine:init', () => {
         wk.x = newX;
         wk.y = newY;
       }
-      this.refreshValidation();
+      // Automatically re-align panels around the moved walkway
+      this.runAutoFill(this.autoFillMode, false);
       this.saveHistory(this.t('historyMoveWalkway'));
     },
 
@@ -629,7 +631,8 @@ document.addEventListener('alpine:init', () => {
       if (this.selectedWalkwayId === id) {
         this.selectedWalkwayId = null;
       }
-      this.refreshValidation();
+      // Automatically re-align panels to fill in freed space
+      this.runAutoFill(this.autoFillMode, false);
       this.saveHistory(this.t('historyDeleteWalkway'));
       this.showToast(this.t('toastWalkwayDeleted'));
     },
@@ -638,7 +641,7 @@ document.addEventListener('alpine:init', () => {
       if (!this.walkway.customCorridors || this.walkway.customCorridors.length === 0) return;
       this.walkway.customCorridors = [];
       this.selectedWalkwayId = null;
-      this.refreshValidation();
+      this.runAutoFill(this.autoFillMode, false);
       this.saveHistory('Clear custom walkways');
       this.showToast(this.t('toastWalkwayDeleted'));
     },
