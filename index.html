@@ -38,6 +38,31 @@
 <body x-data="roofPlannerApp">
   <div id="app-root">
 
+    <!-- Dedicated Architectural Print Header (Visible during printing / PDF export) -->
+    <div class="print-only-header">
+      <div class="print-brand-row">
+        <h2>SolarRoofFit — Solar PV Flat Roof Blueprint</h2>
+        <span class="print-date" x-text="new Date().toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US', { year: 'numeric', month: 'long', day: 'numeric' })"></span>
+      </div>
+      <div class="print-metrics-row">
+        <div class="print-metric-item">
+          <strong>Roof:</strong> <span x-text="`${Number(roof.width).toFixed(2)}m × ${Number(roof.length).toFixed(2)}m (${roofArea} m²)`"></span>
+        </div>
+        <div class="print-metric-item">
+          <strong>Modules:</strong> <span x-text="`${modules.length} pcs (${getPresetName(modulePresets[module.preset]) || 'Custom'})`"></span>
+        </div>
+        <div class="print-metric-item">
+          <strong>Power:</strong> <span x-text="`${totalPowerKW} kWp`"></span>
+        </div>
+        <div class="print-metric-item">
+          <strong>Coverage:</strong> <span x-text="`${coveragePercent}% (${pvTotalArea} m²)`"></span>
+        </div>
+        <div class="print-metric-item">
+          <strong>Density:</strong> <span x-text="`${powerDensity} Wp/m²`"></span>
+        </div>
+      </div>
+    </div>
+
     <!-- ====================================================================
          Header: Logo, Primary Tools & Export Actions
          ==================================================================== -->

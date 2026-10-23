@@ -1766,4 +1766,123 @@ input:checked + .slider-round:before {
   margin: 0;
 }
 
+/* Print Header hidden by default on screen */
+.print-only-header {
+  display: none;
+}
+
+/* ====================================================================
+   Print Stylesheet (@media print) for Paper and PDF Blueprint Generation
+   ==================================================================== */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  *, *::before, *::after {
+    print-color-adjust: exact !important;
+    -webkit-print-color-adjust: exact !important;
+  }
+
+  html, body {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+    color: #0F172A !important;
+  }
+
+  #app-root {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+  }
+
+  /* Hide interactive UI elements */
+  .app-header,
+  .sidebar,
+  .canvas-toolbar-floating,
+  .canvas-controls-floating,
+  .drop-zone-overlay,
+  .toast-notification,
+  .modal-backdrop,
+  .quick-shortcuts-bar,
+  .bottom-info-strip {
+    display: none !important;
+  }
+
+  .workspace-container {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Show Print Architectural Header */
+  .print-only-header {
+    display: block !important;
+    border-bottom: 2px solid #0F172A;
+    padding-bottom: 0.45rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .print-brand-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .print-brand-row h2 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #0F172A;
+    margin: 0;
+  }
+
+  .print-date {
+    font-size: 0.8rem;
+    color: #475569;
+    font-family: var(--font-mono);
+  }
+
+  .print-metrics-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    font-size: 0.78rem;
+    color: #334155;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .print-metric-item strong {
+    color: #0F172A;
+  }
+
+  /* Center and scale canvas */
+  .canvas-viewport {
+    height: auto !important;
+    max-height: 82vh !important;
+    overflow: visible !important;
+    background: #FFFFFF !important;
+    background-image: none !important;
+    border: 1px solid #CBD5E1;
+    border-radius: 8px;
+    padding: 0.5rem;
+  }
+
+  #roof-canvas-svg {
+    width: 100% !important;
+    height: 70vh !important;
+    max-height: 70vh !important;
+    display: block !important;
+    margin: 0 auto;
+  }
+}
+
+
 
