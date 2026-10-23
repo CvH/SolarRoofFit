@@ -562,18 +562,38 @@ export class SvgCanvasManager {
         : `Walk Space (${spanDim.toFixed(2)}m)`;
       g.appendChild(text);
 
-      // Pointer event listener for custom walkway selection and dragging
+      // Pointer event listener for custom walkway selection, double-click, and dragging
       if (w.isCustom) {
+        let lastPointerDownTime = 0;
         g.addEventListener('pointerdown', (e) => {
           const appState = this.getAppState ? this.getAppState() : {};
           if (appState.activeTool === 'draw_walkway') return;
 
           e.stopPropagation();
           e.preventDefault();
+
+          const now = Date.now();
+          if (now - lastPointerDownTime < 350) {
+            lastPointerDownTime = 0;
+            if (callbacks.onWalkwayDblClick) {
+              callbacks.onWalkwayDblClick(w.id, e);
+            }
+            return;
+          }
+          lastPointerDownTime = now;
+
           if (callbacks.onWalkwaySelect) {
             callbacks.onWalkwaySelect(w.id, e);
           }
           this.startWalkwayDrag(w, e);
+        });
+
+        g.addEventListener('dblclick', (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          if (callbacks.onWalkwayDblClick) {
+            callbacks.onWalkwayDblClick(w.id, e);
+          }
         });
       }
 

@@ -66,6 +66,12 @@ document.addEventListener('alpine:init', () => {
 
     activeTool: 'select',    // 'select' | 'draw_walkway'
     selectedWalkwayId: null, // ID of currently selected custom walkway
+    walkwayEditModal: {
+      open: false,
+      id: null,
+      width: 0.80,
+      direction: 'vertical'
+    },
 
     module: {
       width: 1134,      // mm
@@ -266,6 +272,7 @@ document.addEventListener('alpine:init', () => {
         this.selectedWalkwayId,
         {
           onWalkwaySelect: (id, e) => this.selectWalkway(id, e),
+          onWalkwayDblClick: (id, e) => this.openEditWalkwayModal(id),
           onWalkwayMove: (id, newX, newY) => this.onWalkwayMove(id, newX, newY),
           onWalkwayMoveEnd: (id, newX, newY) => this.onWalkwayMoveEnd(id, newX, newY),
           onWalkwayCreated: (newWalkway) => this.onWalkwayCreated(newWalkway),
@@ -646,6 +653,109 @@ document.addEventListener('alpine:init', () => {
       this.showToast(this.t('toastWalkwayDeleted'));
     },
 
+    openEditWalkwayModal(id) {
+      const wk = (this.walkway.customCorridors || []).find(w => w.id === id);
+      if (!wk) return;
+      const currentSpan = wk.direction === 'vertical' ? wk.width : wk.height;
+      this.walkwayEditModal = {
+        open: true,
+        id: wk.id,
+        width: Number(currentSpan.toFixed(2)),
+        direction: wk.direction
+      };
+      this.selectWalkway(id);
+      this.$nextTick(() => {
+        const inp = document.getElementById('input-edit-walkway-width');
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      });
+    },
+
+    closeWalkwayEditModal() {
+      this.walkwayEditModal.open = false;
+    },
+
+    applyWalkwayWidth() {
+      const id = this.walkwayEditModal.id;
+      const newWidth = Math.max(0.1, Number(this.walkwayEditModal.width) || 0.8);
+      const wk = (this.walkway.customCorridors || []).find(w => w.id === id);
+      if (wk) {
+        if (wk.direction === 'vertical') {
+          const delta = newWidth - wk.width;
+          wk.x = Number((wk.x - delta / 2).toFixed(4));
+          wk.width = Number(newWidth.toFixed(4));
+        } else {
+          const delta = newWidth - wk.height;
+          wk.y = Number((wk.y - delta / 2).toFixed(4));
+          wk.height = Number(newWidth.toFixed(4));
+        }
+        this.runAutoFill(this.autoFillMode, false);
+        this.saveHistory(this.t('historyChangeWalkwayWidth', { width: newWidth.toFixed(2) }));
+        this.showToast(this.t('toastWalkwayWidthChanged', { width: newWidth.toFixed(2) }));
+      }
+      this.walkwayEditModal.open = false;
+    },
+
+    resetToDefault() {
+      const confirmMsg = this.lang === 'de'
+        ? 'Möchten Sie den gesamten Dachplaner auf die Standardeinstellungen zurücksetzen?'
+        : 'Reset entire roof plan and settings to factory defaults?';
+      if (!confirm(confirmMsg)) return;
+
+      this.roof = {
+        width: 8.0,
+        length: 8.0,
+        setback: 0.5,
+        setbackTop: 0.5,
+        setbackBottom: 0.5,
+        setbackLeft: 0.5,
+        setbackRight: 0.5,
+        setbackLinked: true
+      };
+
+      this.walkway = {
+        enabled: false,
+        width: 0.80,
+        interval: 2,
+        direction: 'horizontal',
+        corridors: [],
+        customCorridors: []
+      };
+
+      this.module = {
+        width: 1134,
+        height: 1762,
+        power: 430,
+        gapX: 20,
+        gapY: 20,
+        preset: 'standard_430'
+      };
+
+      this.grid = {
+        enabled: true,
+        step: 0.25,
+        showGrid: true,
+        snapToPanels: true
+      };
+
+      this.activeTool = 'select';
+      this.selectedWalkwayId = null;
+      this.selectedIds = [];
+      this.autoFillMode = 'mixed';
+      this.autoBestStrategy = 'mixed';
+
+      try {
+        localStorage.removeItem('pv_roof_planner_state');
+      } catch (_) {}
+
+      this.runAutoFill('mixed', false);
+      this.fitToRoof();
+      this.saveHistory(this.t('historyResetDefault'));
+      this.showToast(this.t('toastResetDefault'));
+    },
+
     onBackgroundClick(e) {
       if (this.selectedWalkwayId) {
         this.selectedWalkwayId = null;
@@ -783,10 +893,7 @@ document.addEventListener('alpine:init', () => {
           return;
         }
 
-        if (e.key === 'w' || e.key === 'W') {
-          e.preventDefault();
-          this.toggleDrawWalkway();
-        } else if (e.key === 'r' || e.key === 'R') {
+        if (e.key === 'r' || e.key === 'R') {
           e.preventDefault();
           this.rotateSelected();
         } else if (e.key === 'Delete' || e.key === 'Backspace') {
