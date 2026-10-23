@@ -1011,7 +1011,9 @@ export class SvgCanvasManager {
       text.setAttribute('class', `obstacle-annotation ${isSelected ? 'selected' : ''}`);
       text.setAttribute('x', (o.x + oW / 2).toFixed(4));
       text.setAttribute('y', (o.y + oH / 2).toFixed(4));
-      const typeLabel = o.type === 'skylight' ? 'Skylight' : 'Chimney';
+      const appState = this.getAppState ? this.getAppState() : {};
+      const isDe = appState.lang === 'de';
+      const typeLabel = o.type === 'skylight' ? (isDe ? 'Fenster' : 'Window') : (isDe ? 'Schornstein' : 'Chimney');
       text.textContent = `${typeLabel} (${oW.toFixed(2)}×${oH.toFixed(2)}m)`;
       g.appendChild(text);
 

@@ -885,7 +885,7 @@ document.addEventListener('alpine:init', () => {
       const step = this.grid.enabled ? this.grid.step : 0.25;
       const pos = findFreeObstaclePosition(this.obstacles, w, l, this.roof, step);
 
-      const name = presetObj ? (this.lang === 'de' ? (presetObj.name_de || presetObj.name) : presetObj.name) : (type === 'skylight' ? 'Skylight' : 'Chimney');
+      const name = presetObj ? (this.lang === 'de' ? (presetObj.name_de || presetObj.name) : presetObj.name) : (type === 'skylight' ? (this.lang === 'de' ? 'Fenster' : 'Window') : (this.lang === 'de' ? 'Schornstein' : 'Chimney'));
       const newObs = {
         id: 'obs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
         type,
@@ -2103,7 +2103,7 @@ document.addEventListener('alpine:init', () => {
           rows.push([isDe ? 'Anzahl Aufbauten' : 'Total Obstacles Placed', this.obstacles.length, isDe ? 'Stk.' : 'pcs']);
           this.obstacles.forEach((obs, idx) => {
             rows.push([
-              `#${idx + 1} ${obs.type === 'skylight' ? (isDe ? 'Lichtkuppel/Fenster' : 'Skylight/Window') : (isDe ? 'Kamin' : 'Chimney')}: ${obs.name || ''}`,
+              `#${idx + 1} ${obs.type === 'skylight' ? (isDe ? 'Fenster' : 'Window') : (isDe ? 'Schornstein' : 'Chimney')}: ${obs.name || ''}`,
               `${Number(obs.width).toFixed(2)}m × ${Number(obs.length).toFixed(2)}m (X: ${Number(obs.x).toFixed(2)}m, Y: ${Number(obs.y).toFixed(2)}m, Buffer: ${(obs.clearance !== undefined ? Number(obs.clearance) : 0.3).toFixed(2)}m)`,
               ''
             ]);

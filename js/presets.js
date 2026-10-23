@@ -147,59 +147,59 @@ export const WALKWAY_INTERVAL_OPTIONS = [
 ];
 
 export const SKYLIGHT_PRESETS = {
-  // Flat-roof skylight domes (Lichtkuppeln)
+  // Flat-roof window domes (Lichtkuppeln)
   dome_60_60: {
     category: 'dome',
-    name: 'Skylight Dome 60 × 60 cm',
+    name: 'Window Dome 60 × 60 cm',
     name_de: 'Lichtkuppel 60 × 60 cm',
     width: 0.60,
     length: 0.60,
-    description: 'Square flat roof skylight dome 60 × 60 cm.',
+    description: 'Square flat roof window dome 60 × 60 cm.',
     description_de: 'Quadratische Lichtkuppel 60 × 60 cm für Flachdächer.'
   },
   dome_80_80: {
     category: 'dome',
-    name: 'Skylight Dome 80 × 80 cm',
+    name: 'Window Dome 80 × 80 cm',
     name_de: 'Lichtkuppel 80 × 80 cm',
     width: 0.80,
     length: 0.80,
-    description: 'Square flat roof skylight dome 80 × 80 cm.',
+    description: 'Square flat roof window dome 80 × 80 cm.',
     description_de: 'Quadratische Lichtkuppel 80 × 80 cm für Flachdächer.'
   },
   dome_100_100: {
     category: 'dome',
-    name: 'Skylight Dome 100 × 100 cm (Standard)',
+    name: 'Window Dome 100 × 100 cm (Standard)',
     name_de: 'Lichtkuppel 100 × 100 cm (Standard)',
     width: 1.00,
     length: 1.00,
-    description: 'Standard flat roof skylight dome 100 × 100 cm (1.0 × 1.0 m).',
+    description: 'Standard flat roof window dome 100 × 100 cm (1.0 × 1.0 m).',
     description_de: 'Standard-Lichtkuppel 100 × 100 cm (1,0 × 1,0 m).'
   },
   dome_120_120: {
     category: 'dome',
-    name: 'Skylight Dome 120 × 120 cm',
+    name: 'Window Dome 120 × 120 cm',
     name_de: 'Lichtkuppel 120 × 120 cm',
     width: 1.20,
     length: 1.20,
-    description: 'Large flat roof skylight dome 120 × 120 cm (1.2 × 1.2 m).',
+    description: 'Large flat roof window dome 120 × 120 cm (1.2 × 1.2 m).',
     description_de: 'Große Lichtkuppel 120 × 120 cm (1,2 × 1,2 m).'
   },
   dome_150_150: {
     category: 'dome',
-    name: 'Skylight Dome 150 × 150 cm',
+    name: 'Window Dome 150 × 150 cm',
     name_de: 'Lichtkuppel 150 × 150 cm',
     width: 1.50,
     length: 1.50,
-    description: 'Extra large flat roof skylight dome 150 × 150 cm.',
+    description: 'Extra large flat roof window dome 150 × 150 cm.',
     description_de: 'Extra große Lichtkuppel 150 × 150 cm.'
   },
   dome_100_150: {
     category: 'dome',
-    name: 'Skylight Dome 100 × 150 cm',
+    name: 'Window Dome 100 × 150 cm',
     name_de: 'Lichtkuppel 100 × 150 cm',
     width: 1.00,
     length: 1.50,
-    description: 'Rectangular flat roof skylight dome 100 × 150 cm.',
+    description: 'Rectangular flat roof window dome 100 × 150 cm.',
     description_de: 'Rechteckige Lichtkuppel 100 × 150 cm.'
   },
 
@@ -286,14 +286,14 @@ export const SKYLIGHT_PRESETS = {
     description_de: 'Maximales Dachfenster 134 × 140 cm (Velux UK08).'
   },
 
-  // Custom Skylight
+  // Custom Window
   custom: {
     category: 'custom',
-    name: 'Custom Skylight (0.30 – 2.50 m)',
+    name: 'Custom Window (0.30 – 2.50 m)',
     name_de: 'Benutzerdefiniert (0,30 – 2,50 m)',
     width: 1.00,
     length: 1.00,
-    description: 'Custom skylight dimensions between 0.30 m and 2.50 m.',
+    description: 'Custom window dimensions between 0.30 m and 2.50 m.',
     description_de: 'Freie Abmessungen zwischen 0,30 m und 2,50 m.'
   }
 };

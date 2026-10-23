@@ -399,7 +399,7 @@
             <div class="segmented-control">
               <button type="button" class="segment-btn" :class="obstacleTab === 'skylight' ? 'active' : ''" @click="obstacleTab = 'skylight'; selectedObstaclePreset = 'dome_100_100'; onObstaclePresetChange()">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
-                <span x-text="t('typeSkylight')">Skylight / Window</span>
+                <span x-text="t('typeSkylight')">Window</span>
               </button>
               <button type="button" class="segment-btn" :class="obstacleTab === 'chimney' ? 'active' : ''" @click="obstacleTab = 'chimney'; selectedObstaclePreset = 'single_40_40'; onObstaclePresetChange()">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"/><path d="M3 21h18"/><circle cx="12" cy="8" r="1.5"/></svg>
@@ -495,7 +495,7 @@
           <!-- Add Obstacle Button -->
           <button id="btn-add-obstacle-roof" type="button" class="btn btn-solar" style="width: 100%; justify-content: center; font-size: 0.75rem; padding: 0.35rem 0.5rem; margin-top: 0.2rem;" @click="addObstacle()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-            <span x-text="t('btnAddObstacleToRoof')">Add Obstacle to Roof</span>
+            <span x-text="t('btnAddObstacleToRoof')">Add Obstacle</span>
           </button>
 
           <!-- Placed Obstacles List -->
@@ -517,7 +517,7 @@
                       <span x-show="o.type === 'chimney'" style="color: #B45309; display: flex; align-items: center;">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16"/><path d="M3 21h18"/><circle cx="12" cy="8" r="1.5"/></svg>
                       </span>
-                      <span style="font-weight: 600;" x-text="o.name || (o.type === 'skylight' ? 'Skylight' : 'Chimney')"></span>
+                      <span style="font-weight: 600;" x-text="o.name || (o.type === 'skylight' ? (lang === 'de' ? 'Fenster' : 'Window') : (lang === 'de' ? 'Schornstein' : 'Chimney'))"></span>
                       <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.63rem; color: var(--text-muted);" x-text="o.width.toFixed(2) + '×' + o.length.toFixed(2) + 'm'"></span>
                     </div>
                     <div style="display: flex; align-items: center; gap: 0.2rem;">
@@ -533,7 +533,7 @@
               </div>
             </template>
             <template x-if="!obstacles || obstacles.length === 0">
-              <p style="font-size: 0.68rem; color: var(--text-subtle); margin: 0.2rem 0;" x-text="t('noObstacles')">No skylights or chimneys placed yet</p>
+              <p style="font-size: 0.68rem; color: var(--text-subtle); margin: 0.2rem 0;" x-text="t('noObstacles')">No windows or chimneys placed yet</p>
             </template>
           </div>
         </div>
@@ -619,13 +619,13 @@
             <span class="btn-text-responsive" x-text="t('btnDrawWalkway')">Draw Walkway</span>
           </button>
 
-          <!-- Quick Add Skylight & Chimney Obstacle Buttons -->
+          <!-- Quick Add Window & Chimney Obstacle Buttons -->
           <button id="btn-add-skylight" 
                   class="btn" 
                   @click="addObstacle('skylight')" 
                   :title="t('btnAddSkylightTitle')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h18"/><path d="M12 3v18"/></svg>
-            <span class="btn-text-responsive" x-text="t('btnAddSkylight')">+ Skylight</span>
+            <span class="btn-text-responsive" x-text="t('btnAddSkylight')">+ Window</span>
           </button>
           <button id="btn-add-chimney" 
                   class="btn" 
@@ -971,7 +971,7 @@
             <label class="form-label" x-text="t('obstacleType')">Obstacle Type</label>
             <div class="segmented-control">
               <button type="button" class="segment-btn" :class="obstacleEditModal.type === 'skylight' ? 'active' : ''" @click="obstacleEditModal.type = 'skylight'; obstacleEditModal.preset = 'dome_100_100'; onObstaclePresetChange(true)">
-                <span x-text="t('typeSkylight')">Skylight / Window</span>
+                <span x-text="t('typeSkylight')">Window</span>
               </button>
               <button type="button" class="segment-btn" :class="obstacleEditModal.type === 'chimney' ? 'active' : ''" @click="obstacleEditModal.type = 'chimney'; obstacleEditModal.preset = 'single_40_40'; onObstaclePresetChange(true)">
                 <span x-text="t('typeChimney')">Chimney</span>
