@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>SolarRoofFit — Automated Layout Engine Test Suite</title>
+  <style>
+    :root {
+      --bg: #0F172A;
+      --card-bg: #1E293B;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --pass: #10B981;
+      --fail: #EF4444;
+      --border: #334155;
+    }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 1.5rem;
+    }
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.5rem;
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 1.5rem;
+    }
+    .summary-metric {
+      display: flex;
+      flex-direction: column;
+    }
+    .metric-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+    }
+    .metric-value.pass { color: var(--pass); }
+    .metric-value.fail { color: var(--fail); }
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .suite-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      overflow: hidden;
+    }
+    .suite-title {
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+    .test-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .test-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.88rem;
+    }
+    .test-item:last-child {
+      border-bottom: none;
+    }
+    .test-name {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .badge.pass {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--pass);
+    }
+    .badge.fail {
+      background: rgba(239, 68, 68, 0.2);
+      color: var(--fail);
+    }
+    .error-detail {
+      color: var(--fail);
+      font-family: monospace;
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+      padding-left: 1.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SolarRoofFit Test Suite</h1>
+    <div class="subtitle">Layout Math & Geometry Verification Runner</div>
+
+    <div class="summary-card">
+      <div class="summary-metric">
+        <span class="metric-value pass" id="metric-passed">0</span>
+        <span class="metric-label">Passed</span>
+      </div>
+      <div class="summary-metric">
+        <span class="metric-value fail" id="metric-failed">0</span>
+        <span class="metric-label">Failed</span>
+      </div>
+      <div class="summary-metric">
+        <span class="metric-value" id="metric-total">0</span>
+        <span class="metric-label">Total Tests</span>
+      </div>
+    </div>
+
+    <div id="suites-container"></div>
+  </div>
+
+  <script type="module">
+    import {
+      snapToGrid,
+      getRoofSetbacks,
+      getRotatedDimensions,
+      getModuleBounds,
+      evaluateModuleBoundary,
+      detectCollisions,
+      decomposeUsableArea,
+      calculateAutoFill
+    } from '../js/layout.js';
+
+    const suites = [];
+    let currentSuite = null;
+
+    function describe(name, fn) {
+      currentSuite = { name, tests: [] };
+      suites.push(currentSuite);
+      fn();
+    }
+
+    function it(name, fn) {
+      currentSuite.tests.push({ name, fn });
+    }
+
+    function assertEqual(actual, expected, msg = '') {
+      if (actual !== expected) {
+        throw new Error(`${msg} Expected ${JSON.stringify(expected)} but got ${JSON.stringify(actual)}`);
+      }
+    }
+
+    function assertDeepEqual(actual, expected, msg = '') {
+      const a = JSON.stringify(actual);
+      const e = JSON.stringify(expected);
+      if (a !== e) {
+        throw new Error(`${msg} Expected ${e} but got ${a}`);
+      }
+    }
+
+    function assertOk(val, msg = '') {
+      if (!val) throw new Error(`${msg} Value was not truthy: ${val}`);
+    }
+
+    // Suite 1: snapToGrid
+    describe('snapToGrid', () => {
+      it('snaps numbers to nearest raster step', () => {
+        assertEqual(snapToGrid(1.23, 0.1), 1.2);
+        assertEqual(snapToGrid(1.27, 0.1), 1.3);
+        assertEqual(snapToGrid(2.55, 0.5), 2.5);
+        assertEqual(snapToGrid(2.78, 0.5), 3.0);
+      });
+      it('returns original value when step is 0 or negative', () => {
+        assertEqual(snapToGrid(1.234, 0), 1.234);
+        assertEqual(snapToGrid(1.234, -1), 1.234);
+      });
+    });
+
+    // Suite 2: getRoofSetbacks
+    describe('getRoofSetbacks', () => {
+      it('handles uniform linked setbacks', () => {
+        const roof = { setbackLinked: true, setback: 0.6 };
+        assertDeepEqual(getRoofSetbacks(roof), { top: 0.6, bottom: 0.6, left: 0.6, right: 0.6 });
+      });
+      it('handles individual 4-sided unlinked setbacks', () => {
+        const roof = { setbackLinked: false, setbackTop: 0.5, setbackBottom: 0.8, setbackLeft: 0.4, setbackRight: 0.7 };
+        assertDeepEqual(getRoofSetbacks(roof), { top: 0.5, bottom: 0.8, left: 0.4, right: 0.7 });
+      });
+      it('clamps negative setbacks to zero', () => {
+        const roof = { setbackLinked: true, setback: -0.2 };
+        assertDeepEqual(getRoofSetbacks(roof), { top: 0, bottom: 0, left: 0, right: 0 });
+      });
+    });
+
+    // Suite 3: getRotatedDimensions
+    describe('getRotatedDimensions', () => {
+      const modConfig = { width: 1134, height: 1762 };
+      it('returns portrait dimensions at 0° and 180°', () => {
+        const d0 = getRotatedDimensions(modConfig, 0);
+        assertEqual(d0.width, 1.134);
+        assertEqual(d0.height, 1.762);
+        assertEqual(d0.isLandscape, false);
+        const d180 = getRotatedDimensions(modConfig, 180);
+        assertEqual(d180.width, 1.134);
+        assertEqual(d180.height, 1.762);
+        assertEqual(d180.isLandscape, false);
+      });
+      it('returns landscape dimensions at 90° and 270°', () => {
+        const d90 = getRotatedDimensions(modConfig, 90);
+        assertEqual(d90.width, 1.762);
+        assertEqual(d90.height, 1.134);
+        assertEqual(d90.isLandscape, true);
+        const d270 = getRotatedDimensions(modConfig, 270);
+        assertEqual(d270.width, 1.762);
+        assertEqual(d270.height, 1.134);
+        assertEqual(d270.isLandscape, true);
+      });
+    });
+
+    // Suite 4: evaluateModuleBoundary
+    describe('evaluateModuleBoundary', () => {
+      const roof = { width: 10, length: 8, setback: 0.5, setbackLinked: true };
+      const modConfig = { width: 1000, height: 1600 };
+      it('returns ok when module is safely inside setbacks', () => {
+        const mod = { id: 1, x: 2.0, y: 2.0, rotation: 0 };
+        assertEqual(evaluateModuleBoundary(mod, modConfig, roof), 'ok');
+      });
+      it('returns warning_setback when module breaches setback border', () => {
+        const mod = { id: 2, x: 0.2, y: 2.0, rotation: 0 };
+        assertEqual(evaluateModuleBoundary(mod, modConfig, roof), 'warning_setback');
+      });
+      it('returns error_roof when module hangs over roof edge', () => {
+        const mod = { id: 3, x: 9.5, y: 2.0, rotation: 0 };
+        assertEqual(evaluateModuleBoundary(mod, modConfig, roof), 'error_roof');
+      });
+    });
+
+    // Suite 5: detectCollisions
+    describe('detectCollisions', () => {
+      const modConfig = { width: 1000, height: 1000 };
+      it('detects overlapping modules', () => {
+        const modules = [
+          { id: 'm1', x: 1.0, y: 1.0, rotation: 0 },
+          { id: 'm2', x: 1.5, y: 1.5, rotation: 0 },
+          { id: 'm3', x: 5.0, y: 5.0, rotation: 0 }
+        ];
+        const colliding = detectCollisions(modules, modConfig, [], []);
+        assertEqual(colliding.has('m1'), true);
+        assertEqual(colliding.has('m2'), true);
+        assertEqual(colliding.has('m3'), false);
+      });
+      it('detects collisions with obstacle keep-out buffer', () => {
+        const modules = [{ id: 'm1', x: 1.0, y: 1.0, rotation: 0 }];
+        const obstacles = [{ id: 'obs1', x: 1.5, y: 1.5, width: 1.0, length: 1.0, clearance: 0.3 }];
+        const colliding = detectCollisions(modules, modConfig, [], obstacles);
+        assertEqual(colliding.has('m1'), true);
+      });
+      it('detects collisions with custom walkways', () => {
+        const modules = [{ id: 'm1', x: 2.0, y: 2.0, rotation: 0 }];
+        const walkways = [{ id: 'w1', x: 1.5, y: 2.2, width: 2.0, height: 0.5 }];
+        const colliding = detectCollisions(modules, modConfig, walkways, []);
+        assertEqual(colliding.has('m1'), true);
+      });
+    });
+
+    // Suite 6: calculateAutoFill
+    describe('calculateAutoFill', () => {
+      it('generates optimal packed modules on a standard roof', () => {
+        const roof = { width: 10, length: 8, setback: 0.5, setbackLinked: true };
+        const modConfig = { width: 1134, height: 1762, gapX: 20, gapY: 20 };
+        const result = calculateAutoFill(roof, modConfig, 'optimal', 0.05);
+        assertOk(result.count > 0, 'Should place at least 1 module');
+        assertEqual(result.modules.length, result.count);
+        for (const m of result.modules) {
+          const status = evaluateModuleBoundary(m, modConfig, roof);
+          assertEqual(status !== 'error_roof', true, 'Module cannot hang outside roof edge');
+        }
+      });
+      it('returns 0 modules when usable roof area is zero or negative', () => {
+        const roof = { width: 2, length: 2, setback: 1.5, setbackLinked: true };
+        const modConfig = { width: 1134, height: 1762, gapX: 20, gapY: 20 };
+        const result = calculateAutoFill(roof, modConfig, 'optimal', 0.05);
+        assertEqual(result.count, 0);
+        assertEqual(result.modules.length, 0);
+      });
+    });
+
+    // Suite 7: decomposeUsableArea
+    describe('decomposeUsableArea', () => {
+      it('partitions a rectangular area around a central walkway', () => {
+        const usable = { x: 0, y: 0, width: 10, height: 10 };
+        const walkway = [{ x: 4, y: 0, width: 2, height: 10 }];
+        const zones = decomposeUsableArea(usable, walkway, 0, 0);
+        assertEqual(zones.length, 2);
+        assertOk(zones.find(z => z.x === 0));
+        assertOk(zones.find(z => z.x >= 6));
+      });
+    });
+
+    // Run tests and render results
+    let passedCount = 0;
+    let failedCount = 0;
+    const container = document.getElementById('suites-container');
+
+    for (const suite of suites) {
+      const suiteCard = document.createElement('div');
+      suiteCard.className = 'suite-card';
+
+      const title = document.createElement('div');
+      title.className = 'suite-title';
+      title.innerHTML = `<span>${suite.name}</span>`;
+      suiteCard.appendChild(title);
+
+      const list = document.createElement('ul');
+      list.className = 'test-list';
+
+      for (const t of suite.tests) {
+        const li = document.createElement('li');
+        li.className = 'test-item';
+        let errMessage = null;
+
+        try {
+          t.fn();
+          passedCount++;
+          li.innerHTML = `
+            <div class="test-name">
+              <span class="badge pass">PASS</span>
+              <span>${t.name}</span>
+            </div>
+          `;
+        } catch (err) {
+          failedCount++;
+          li.innerHTML = `
+            <div>
+              <div class="test-name">
+                <span class="badge fail">FAIL</span>
+                <span>${t.name}</span>
+              </div>
+              <div class="error-detail">${err.message}</div>
+            </div>
+          `;
+        }
+        list.appendChild(li);
+      }
+
+      suiteCard.appendChild(list);
+      container.appendChild(suiteCard);
+    }
+
+    document.getElementById('metric-passed').textContent = passedCount;
+    document.getElementById('metric-failed').textContent = failedCount;
+    document.getElementById('metric-total').textContent = passedCount + failedCount;
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "roofplaner",
+  "version": "1.0.0",
+  "description": "SolarRoofFit — Flat Roof Solar PV CAD & Planner",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/layout.test.js"
+  },
+  "keywords": [
+    "photovoltaic",
+    "solar-energy",
+    "cad",
+    "roof-planner",
+    "flat-roof",
+    "solar-calculator"
+  ],
+  "author": "CvH",
+  "license": "GPL-3.0"
+}
