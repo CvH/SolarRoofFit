@@ -14,7 +14,7 @@ import {
   findFreeSpawnPosition
 } from './layout.js?v=26';
 import { SvgCanvasManager } from './canvas.js?v=26';
-import { translate } from './i18n.js?v=26';
+import { translate } from './i18n.js?v=29';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers

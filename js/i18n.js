@@ -246,7 +246,7 @@ export const TRANSLATIONS = {
     // Canvas Toolbar
     btnAddModule: "Modul hinzufügen",
     btnAddModuleTitle: "Ein einzelnes PV-Modul auf dem Dach platzieren",
-    btnDrawWalkway: "Wartungsgang zeichnen",
+    btnDrawWalkway: "Gang zeichnen",
     btnDrawWalkwayTitle: "Benutzerdefinierten Wartungsgang einzeichnen (rastet an Modulreihen & Dach ein)",
     hintDrawWalkway: "Gang-Werkzeug: Entlang Modulreihen ziehen. Rastet magnetisch ein. Esc zum Beenden.",
     toastWalkwayCreated: "Wartungskorridor hinzugefügt",
