@@ -2,7 +2,7 @@
  * Main Application Controller with Alpine.js
  */
 
-import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=32';
+import { MODULE_PRESETS, RASTER_OPTIONS, WALKWAY_INTERVAL_OPTIONS } from './presets.js?v=33';
 import {
   snapToGrid,
   getRotatedDimensions,
@@ -14,7 +14,7 @@ import {
   findFreeSpawnPosition
 } from './layout.js?v=26';
 import { SvgCanvasManager } from './canvas.js?v=31';
-import { translate } from './i18n.js?v=29';
+import { translate } from './i18n.js?v=33';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers

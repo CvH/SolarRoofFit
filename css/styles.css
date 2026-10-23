@@ -355,6 +355,7 @@ html, body {
   font-weight: 500;
   color: var(--text-muted);
   margin-bottom: 0.18rem;
+  white-space: nowrap;
 }
 
 .form-label .unit-badge {

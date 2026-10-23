@@ -48,7 +48,7 @@ export const TRANSLATIONS = {
     panelModuleSpecs: "PV Module Specifications",
     labelModulePreset: "Module Model Preset",
     labelModWidth: "Width",
-    labelModHeight: "Length / Height",
+    labelModHeight: "Length",
     labelModPower: "Peak Power",
     labelClampGap: "Clamp Gap",
 
@@ -219,7 +219,7 @@ export const TRANSLATIONS = {
     panelModuleSpecs: "PV-Modul Spezifikationen",
     labelModulePreset: "Modul-Voreinstellung",
     labelModWidth: "Breite",
-    labelModHeight: "Länge / Höhe",
+    labelModHeight: "Länge",
     labelModPower: "Nennleistung",
     labelClampGap: "Klemmenabstand",
 

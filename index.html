@@ -16,10 +16,10 @@
   <link rel="alternate icon" href="favicon.ico">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=31">
+  <link rel="stylesheet" href="css/styles.css?v=33">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=32"></script>
+  <script type="module" src="js/app.js?v=33"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -258,7 +258,7 @@
               </div>
               <div>
                 <label class="form-label" for="input-mod-height">
-                  <span x-text="t('labelModHeight')">Length / Height</span>
+                  <span x-text="t('labelModHeight')">Length</span>
                   <span class="unit-badge">mm</span>
                 </label>
                 <input id="input-mod-height" type="number" class="input-control" min="500" max="3500" step="5" x-model.number="module.height" @change="refreshValidation(); saveHistory('Change module height')">
