@@ -1559,3 +1559,55 @@ input:checked + .slider-round:before {
   border-top: 1px solid var(--border-color);
   background: #F8FAFC;
 }
+
+/* Blueprint Export Modal Customization */
+.modal-card-export {
+  max-width: 530px !important;
+}
+
+.blueprint-mode-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.blueprint-mode-card {
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.75rem 0.8rem;
+  cursor: pointer;
+  background: #FFFFFF;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.blueprint-mode-card:hover {
+  border-color: var(--brand-blue);
+  background: #F8FAFC;
+}
+
+.blueprint-mode-card.active {
+  border-color: var(--brand-blue);
+  background: rgba(37, 99, 235, 0.05);
+  box-shadow: 0 0 0 1.5px var(--brand-blue);
+}
+
+.mode-card-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.blueprint-mode-card.active .mode-card-title {
+  color: var(--brand-blue);
+}
+
+.mode-card-desc {
+  font-size: 0.68rem;
+  color: var(--text-subtle);
+  line-height: 1.35;
+}
+

@@ -16,10 +16,10 @@
   <link rel="alternate icon" href="favicon.ico">
 
   <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="css/styles.css?v=33">
+  <link rel="stylesheet" href="css/styles.css?v=34">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=33"></script>
+  <script type="module" src="js/app.js?v=34"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -100,11 +100,11 @@
         </div>
 
         <div class="btn-group">
-          <button id="btn-export-svg" type="button" class="btn btn-outline" @click="exportSVG()" :title="t('exportSVGTitle')">
+          <button id="btn-export-svg" type="button" class="btn btn-outline" @click="openExportModal('svg')" :title="t('exportSVGTitle')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             <span x-text="t('exportSVG')">SVG</span>
           </button>
-          <button id="btn-export-png" type="button" class="btn btn-outline" @click="exportPNG()" :title="t('exportPNGTitle')">
+          <button id="btn-export-png" type="button" class="btn btn-outline" @click="openExportModal('png')" :title="t('exportPNGTitle')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
             <span x-text="t('exportPNG')">PNG</span>
           </button>
@@ -770,6 +770,93 @@
         <div class="modal-footer">
           <button id="btn-cancel-walkway-width" type="button" class="btn btn-outline" @click="closeWalkwayEditModal()" x-text="t('btnCancel')">Cancel</button>
           <button id="btn-apply-walkway-width" type="button" class="btn btn-primary" @click="applyWalkwayWidth()" x-text="t('btnApply')">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blueprint Export Options Modal -->
+    <div id="modal-export-blueprint" class="modal-backdrop" x-show="exportModal.open" x-cloak @keydown.escape.window="closeExportModal()">
+      <div class="modal-card modal-card-export" @click.outside="closeExportModal()">
+        <div class="modal-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand-blue)" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <h3 x-text="exportModal.format === 'svg' ? t('modalExportSvgTitle') : t('modalExportPngTitle')">Export Blueprint</h3>
+          </div>
+          <button type="button" class="btn-close" @click="closeExportModal()">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- Format Selector: SVG vs PNG -->
+          <div class="form-group">
+            <label class="form-label" x-text="t('exportFormatLabel')">Export Format</label>
+            <div class="btn-group" style="display: flex; width: 100%; border-radius: 6px; overflow: hidden; border: 1px solid var(--border-color);">
+              <button type="button" class="btn" style="flex: 1; border-radius: 0;" :class="exportModal.format === 'svg' ? 'btn-primary' : 'btn-outline'" @click="exportModal.format = 'svg'">
+                SVG (Vector CAD)
+              </button>
+              <button type="button" class="btn" style="flex: 1; border-radius: 0;" :class="exportModal.format === 'png' ? 'btn-primary' : 'btn-outline'" @click="exportModal.format = 'png'">
+                PNG (High-Res Image)
+              </button>
+            </div>
+          </div>
+
+          <!-- Blueprint Dimension Detail: Detailed vs Standard -->
+          <div class="form-group" style="margin-top: 0.8rem;">
+            <label class="form-label" x-text="t('blueprintModeLabel')">Dimension Line Detail</label>
+            <div class="blueprint-mode-cards">
+              <div class="blueprint-mode-card" :class="exportModal.mode === 'detailed' ? 'active' : ''" @click="exportModal.mode = 'detailed'">
+                <div class="mode-card-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h20"/><path d="M2 5v14"/><path d="M22 5v14"/><path d="M7 9v6"/><path d="M12 9v6"/><path d="M17 9v6"/></svg>
+                  <strong x-text="t('modeDetailedTitle')">Detailed CAD</strong>
+                </div>
+                <p class="mode-card-desc" x-text="t('modeDetailedDesc')">Multi-tier dimensions: Edge setbacks, PV footprint, walkways & spacing</p>
+              </div>
+
+              <div class="blueprint-mode-card" :class="exportModal.mode === 'standard' ? 'active' : ''" @click="exportModal.mode = 'standard'">
+                <div class="mode-card-title">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                  <strong x-text="t('modeStandardTitle')">Standard Clean</strong>
+                </div>
+                <p class="mode-card-desc" x-text="t('modeStandardDesc')">Minimal clean blueprint with outer roof dimensions only</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Dimension Layer Toggles -->
+          <div x-show="exportModal.mode === 'detailed'" style="margin-top: 0.8rem; background: #F8FAFC; border: 1px solid var(--border-color); border-radius: 8px; padding: 0.65rem 0.75rem;">
+            <span style="font-size: 0.7rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.45rem; display: block;" x-text="t('dimensionLayersTitle')">
+              Included Measurements & Annotations
+            </span>
+            <div style="display: flex; flex-direction: column; gap: 0.4rem;">
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.73rem; cursor: pointer; color: var(--text-main);">
+                <input id="chk-opt-setbacks" type="checkbox" x-model="exportModal.showSetbacks">
+                <span x-text="t('optShowSetbacks')">Edge Setbacks (Distances from roof border to PV panels)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.73rem; cursor: pointer; color: var(--text-main);">
+                <input id="chk-opt-array" type="checkbox" x-model="exportModal.showArrayBounds">
+                <span x-text="t('optShowArrayBounds')">Overall PV Array Footprint (Total field width & length)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.73rem; cursor: pointer; color: var(--text-main);">
+                <input id="chk-opt-walkways" type="checkbox" x-model="exportModal.showWalkways">
+                <span x-text="t('optShowWalkways')">Walkway Positions & Clearances</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.73rem; cursor: pointer; color: var(--text-main);">
+                <input id="chk-opt-pitch" type="checkbox" x-model="exportModal.showModulePitch">
+                <span x-text="t('optShowModulePitch')">Module Dimensions & Clamp Gap</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 0.45rem; font-size: 0.73rem; cursor: pointer; color: var(--text-main);">
+                <input id="chk-opt-titleblock" type="checkbox" x-model="exportModal.showTitleBlock">
+                <span x-text="t('optShowTitleBlock')">Architectural CAD Title Block</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center;">
+          <button type="button" class="btn btn-outline" @click="closeExportModal()" x-text="t('btnCancel')">Cancel</button>
+          <button id="btn-confirm-export" type="button" class="btn btn-primary" @click="executeExport()" style="gap: 0.4rem;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span x-text="exportModal.format === 'svg' ? t('btnDownloadSvg') : t('btnDownloadPng')">Download SVG Blueprint</span>
+          </button>
         </div>
       </div>
     </div>

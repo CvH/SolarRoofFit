@@ -24,11 +24,32 @@ export const TRANSLATIONS = {
 
     // Header Exports
     exportSVG: "SVG",
-    exportSVGTitle: "Export Vector SVG Blueprint",
+    exportSVGTitle: "Export Vector SVG Blueprint with Precise Dimensions",
     exportPNG: "PNG",
-    exportPNGTitle: "Export High-Resolution PNG Image",
+    exportPNGTitle: "Export High-Resolution PNG Blueprint with Precise Dimensions",
     exportBOM: "BOM (CSV)",
     exportBOMTitle: "Export Bill of Materials (CSV)",
+
+    // Blueprint Export Modal
+    modalExportSvgTitle: "Export Vector CAD Blueprint (SVG)",
+    modalExportPngTitle: "Export High-Res Blueprint (PNG)",
+    exportFormatLabel: "Export Format",
+    blueprintModeLabel: "Dimension Line Detail",
+    modeDetailedTitle: "Detailed CAD Blueprint",
+    modeDetailedDesc: "Multi-tier dimensions: Edge setbacks, PV footprint, walkways & spacing",
+    modeStandardTitle: "Standard Clean",
+    modeStandardDesc: "Minimal clean blueprint with outer roof dimensions only",
+    dimensionLayersTitle: "Included Measurements & Annotations",
+    optShowSetbacks: "Edge Setbacks (Distances from roof border to PV panels)",
+    optShowArrayBounds: "Overall PV Array Footprint (Total field width & length)",
+    optShowWalkways: "Walkway Positions & Clearances",
+    optShowModulePitch: "Module Dimensions & Clamp Gap",
+    optShowTitleBlock: "Architectural CAD Title Block",
+    btnDownloadSvg: "Download SVG Blueprint",
+    btnDownloadPng: "Download PNG Blueprint",
+    toastExportDetailed: "Exported detailed CAD blueprint with precise measurements",
+    toastExportSVG: "Exported SVG blueprint",
+    toastExportPNG: "Exported PNG image",
 
     // Sidebar: Roof Dimensions
     panelRoofDimensions: "Roof Dimensions",
@@ -195,11 +216,32 @@ export const TRANSLATIONS = {
 
     // Header Exports
     exportSVG: "SVG",
-    exportSVGTitle: "Vektor-SVG Bauplan exportieren",
+    exportSVGTitle: "Vektor-SVG Bauplan mit präzisen Maßen exportieren",
     exportPNG: "PNG",
-    exportPNGTitle: "Hochauflösendes PNG-Bild exportieren",
+    exportPNGTitle: "Hochauflösendes PNG-Bild mit präzisen Maßen exportieren",
     exportBOM: "Stückliste",
     exportBOMTitle: "Stückliste als CSV-Tabelle exportieren",
+
+    // Blueprint Export Modal
+    modalExportSvgTitle: "Vektor-CAD-Bauplan exportieren (SVG)",
+    modalExportPngTitle: "Hochauflösenden Bauplan exportieren (PNG)",
+    exportFormatLabel: "Exportformat",
+    blueprintModeLabel: "Bemaßungs-Detailgrad",
+    modeDetailedTitle: "Detaillierter CAD-Bauplan",
+    modeDetailedDesc: "Mehrstufige Bemaßung: Randabstände, Modulfeld-Maße, Gänge & Klemmenabstand",
+    modeStandardTitle: "Standard Bauplan",
+    modeStandardDesc: "Kompakter Bauplan nur mit Außenmaßen des Daches",
+    dimensionLayersTitle: "Enthaltene Bemaßungen & Maßketten",
+    optShowSetbacks: "Randabstände (Abstand Dachkanten zu PV-Modulen)",
+    optShowArrayBounds: "PV-Modulfeld-Maße (Gesamtbreite & Länge des Modulfelds)",
+    optShowWalkways: "Wartungsgang-Positionen & Abstände",
+    optShowModulePitch: "Modulmaße & Klemmenabstand",
+    optShowTitleBlock: "Architektur-Plankopf (Projektdaten & Kennzahlen)",
+    btnDownloadSvg: "SVG-Bauplan herunterladen",
+    btnDownloadPng: "PNG-Bauplan herunterladen",
+    toastExportDetailed: "Detaillierter CAD-Bauplan mit präzisen Maßen exportiert",
+    toastExportSVG: "SVG-Bauplan exportiert",
+    toastExportPNG: "PNG-Bild exportiert",
 
     // Sidebar: Roof Dimensions
     panelRoofDimensions: "Dachabmessungen",

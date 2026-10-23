@@ -14,7 +14,7 @@ import {
   findFreeSpawnPosition
 } from './layout.js?v=26';
 import { SvgCanvasManager } from './canvas.js?v=31';
-import { translate } from './i18n.js?v=33';
+import { translate } from './i18n.js?v=34';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -71,6 +71,17 @@ document.addEventListener('alpine:init', () => {
       id: null,
       width: 0.80,
       direction: 'vertical'
+    },
+
+    exportModal: {
+      open: false,
+      format: 'svg', // 'svg' | 'png'
+      mode: 'detailed', // 'detailed' | 'standard'
+      showSetbacks: true,
+      showArrayBounds: true,
+      showWalkways: true,
+      showModulePitch: true,
+      showTitleBlock: true
     },
 
     module: {
@@ -698,6 +709,34 @@ document.addEventListener('alpine:init', () => {
       this.walkwayEditModal.open = false;
     },
 
+    openExportModal(format = 'svg') {
+      this.exportModal.format = format;
+      this.exportModal.open = true;
+    },
+
+    closeExportModal() {
+      this.exportModal.open = false;
+    },
+
+    executeExport() {
+      const options = {
+        detailed: this.exportModal.mode === 'detailed',
+        mode: this.exportModal.mode,
+        showSetbacks: this.exportModal.showSetbacks,
+        showArrayBounds: this.exportModal.showArrayBounds,
+        showWalkways: this.exportModal.showWalkways,
+        showModulePitch: this.exportModal.showModulePitch,
+        showTitleBlock: this.exportModal.showTitleBlock
+      };
+
+      if (this.exportModal.format === 'svg') {
+        this.exportSVG(options);
+      } else {
+        this.exportPNG(options);
+      }
+      this.closeExportModal();
+    },
+
     resetToDefault() {
       const confirmMsg = this.lang === 'de'
         ? 'Möchten Sie den gesamten Dachplaner auf die Standardeinstellungen zurücksetzen?'
@@ -968,15 +1007,27 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Standalone SVG Blueprint Generator ---
-    getExportableSVGString() {
+    getExportableSVGString(options = {}) {
       const svgEl = document.getElementById('roof-canvas-svg');
       if (!svgEl) return null;
 
       const clone = svgEl.cloneNode(true);
 
+      // Determine export mode
+      const isDetailed = options.detailed !== undefined
+        ? options.detailed
+        : (options.mode === 'detailed');
+      const showSetbacks = options.showSetbacks !== false;
+      const showArrayBounds = options.showArrayBounds !== false;
+      const showWalkways = options.showWalkways !== false;
+      const showModulePitch = options.showModulePitch !== false;
+      const showTitleBlock = options.showTitleBlock !== false;
+
       // 1. Remove dynamic interaction layers from export
       const snapLayer = clone.querySelector('#snap-guides-layer');
       if (snapLayer) snapLayer.remove();
+      const drawPreviewLayer = clone.querySelector('#drawing-preview-layer');
+      if (drawPreviewLayer) drawPreviewLayer.remove();
 
       // 2. Remove grid overlay if hidden
       const gridOverlay = clone.querySelector('#roof-grid-overlay');
@@ -1029,47 +1080,410 @@ document.addEventListener('alpine:init', () => {
         gridOverlay.setAttribute('height', String(this.roof.length));
       }
 
-      // Dimension lines & text annotations
-      const dimGroup = clone.querySelector('.dimension-annotations');
-      if (dimGroup) {
-        const lines = dimGroup.querySelectorAll('line');
-        if (lines[0]) lines[0].setAttribute('x2', String(this.roof.width));
-        if (lines[2]) {
-          lines[2].setAttribute('x1', String(this.roof.width));
-          lines[2].setAttribute('x2', String(this.roof.width));
+      // Helpers to create SVG nodes
+      const createEl = (tag, attrs = {}) => {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          el.setAttribute(k, String(v));
         }
-        if (lines[3]) lines[3].setAttribute('y2', String(this.roof.length));
-        if (lines[5]) {
-          lines[5].setAttribute('y1', String(this.roof.length));
-          lines[5].setAttribute('y2', String(this.roof.length));
+        return el;
+      };
+
+      const addHorizDim = (parent, x1, x2, y, label, isRoof = false, witnessY = null) => {
+        if (Math.abs(x2 - x1) < 0.01) return;
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        const midX = (left + right) / 2;
+        const tick = isRoof ? 0.08 : 0.06;
+
+        // Witness lines
+        if (witnessY !== null) {
+          parent.appendChild(createEl('line', {
+            x1: left, y1: witnessY, x2: left, y2: y - (y < witnessY ? -0.06 : 0.06),
+            class: 'cad-witness-line'
+          }));
+          parent.appendChild(createEl('line', {
+            x1: right, y1: witnessY, x2: right, y2: y - (y < witnessY ? -0.06 : 0.06),
+            class: 'cad-witness-line'
+          }));
         }
 
-        const texts = dimGroup.querySelectorAll('text');
-        if (texts[0]) {
-          texts[0].setAttribute('x', String(this.roof.width / 2));
-          texts[0].textContent = Number(this.roof.width).toFixed(2) + ' m';
+        // Dimension main line
+        parent.appendChild(createEl('line', {
+          x1: left, y1: y, x2: right, y2: y,
+          class: isRoof ? 'cad-roof-dim-line' : 'cad-dim-line'
+        }));
+
+        // 45-degree ticks
+        parent.appendChild(createEl('line', {
+          x1: left - tick, y1: y + tick, x2: left + tick, y2: y - tick,
+          class: isRoof ? 'cad-roof-dim-tick' : 'cad-dim-tick'
+        }));
+        parent.appendChild(createEl('line', {
+          x1: right - tick, y1: y + tick, x2: right + tick, y2: y - tick,
+          class: isRoof ? 'cad-roof-dim-tick' : 'cad-dim-tick'
+        }));
+
+        // Label badge
+        const textLen = String(label).length;
+        const badgeW = Math.max(0.48, textLen * 0.12);
+        const badgeH = 0.26;
+        parent.appendChild(createEl('rect', {
+          x: midX - badgeW / 2, y: y - badgeH / 2,
+          width: badgeW, height: badgeH, rx: 0.05,
+          class: isRoof ? 'cad-roof-dim-badge-bg' : 'cad-dim-badge-bg'
+        }));
+        const textEl = createEl('text', {
+          x: midX, y: y,
+          class: isRoof ? 'cad-roof-dim-text' : 'cad-dim-text'
+        });
+        textEl.textContent = label;
+        parent.appendChild(textEl);
+      };
+
+      const addVertDim = (parent, y1, y2, x, label, isRoof = false, witnessX = null) => {
+        if (Math.abs(y2 - y1) < 0.01) return;
+        const top = Math.min(y1, y2);
+        const bottom = Math.max(y1, y2);
+        const midY = (top + bottom) / 2;
+        const tick = isRoof ? 0.08 : 0.06;
+
+        // Witness lines
+        if (witnessX !== null) {
+          parent.appendChild(createEl('line', {
+            x1: witnessX, y1: top, x2: x - (x < witnessX ? -0.06 : 0.06), y2: top,
+            class: 'cad-witness-line'
+          }));
+          parent.appendChild(createEl('line', {
+            x1: witnessX, y1: bottom, x2: x - (x < witnessX ? -0.06 : 0.06), y2: bottom,
+            class: 'cad-witness-line'
+          }));
         }
-        if (texts[1]) {
-          texts[1].setAttribute('y', String(this.roof.length / 2));
-          texts[1].setAttribute('transform', `rotate(-90, -0.75, ${this.roof.length / 2})`);
-          texts[1].textContent = Number(this.roof.length).toFixed(2) + ' m';
-        }
+
+        // Dimension main line
+        parent.appendChild(createEl('line', {
+          x1: x, y1: top, x2: x, y2: bottom,
+          class: isRoof ? 'cad-roof-dim-line' : 'cad-dim-line'
+        }));
+
+        // 45-degree ticks
+        parent.appendChild(createEl('line', {
+          x1: x - tick, y1: top + tick, x2: x + tick, y2: top - tick,
+          class: isRoof ? 'cad-roof-dim-tick' : 'cad-dim-tick'
+        }));
+        parent.appendChild(createEl('line', {
+          x1: x - tick, y1: bottom + tick, x2: x + tick, y2: bottom - tick,
+          class: isRoof ? 'cad-roof-dim-tick' : 'cad-dim-tick'
+        }));
+
+        // Label badge (rotated -90deg)
+        const textLen = String(label).length;
+        const badgeW = Math.max(0.48, textLen * 0.12);
+        const badgeH = 0.26;
+        const g = createEl('g', {
+          transform: `rotate(-90, ${x}, ${midY})`
+        });
+        g.appendChild(createEl('rect', {
+          x: x - badgeW / 2, y: midY - badgeH / 2,
+          width: badgeW, height: badgeH, rx: 0.05,
+          class: isRoof ? 'cad-roof-dim-badge-bg' : 'cad-dim-badge-bg'
+        }));
+        const textEl = createEl('text', {
+          x: x, y: midY,
+          class: isRoof ? 'cad-roof-dim-text' : 'cad-dim-text'
+        });
+        textEl.textContent = label;
+        g.appendChild(textEl);
+        parent.appendChild(g);
+      };
+
+      const oldDimGroup = clone.querySelector('.dimension-annotations');
+
+      // 5. Build Dimensions
+      let allWalkways = [...(this.walkway.customCorridors || [])];
+      if (this.walkway.enabled && this.walkway.corridors) {
+        allWalkways.push(...this.walkway.corridors);
       }
 
-      // 5. Clean blueprint dimensions and margin
-      const marginX = Math.max(1.2, this.roof.width * 0.12);
-      const marginY = Math.max(1.2, this.roof.length * 0.12);
-      const vbX = -marginX;
-      const vbY = -marginY;
-      const vbW = this.roof.width + (2 * marginX);
-      const vbH = this.roof.length + (2 * marginY);
+      if (!isDetailed) {
+        // Standard clean blueprint dimensions
+        if (oldDimGroup) {
+          const lines = oldDimGroup.querySelectorAll('line');
+          if (lines[0]) lines[0].setAttribute('x2', String(this.roof.width));
+          if (lines[2]) {
+            lines[2].setAttribute('x1', String(this.roof.width));
+            lines[2].setAttribute('x2', String(this.roof.width));
+          }
+          if (lines[3]) lines[3].setAttribute('y2', String(this.roof.length));
+          if (lines[5]) {
+            lines[5].setAttribute('y1', String(this.roof.length));
+            lines[5].setAttribute('y2', String(this.roof.length));
+          }
+
+          const texts = oldDimGroup.querySelectorAll('text');
+          if (texts[0]) {
+            texts[0].setAttribute('x', String(this.roof.width / 2));
+            texts[0].textContent = Number(this.roof.width).toFixed(2) + ' m';
+          }
+          if (texts[1]) {
+            texts[1].setAttribute('y', String(this.roof.length / 2));
+            texts[1].setAttribute('transform', `rotate(-90, -0.75, ${this.roof.length / 2})`);
+            texts[1].textContent = Number(this.roof.length).toFixed(2) + ' m';
+          }
+        }
+      } else {
+        // Detailed CAD multi-tier blueprint
+        if (oldDimGroup) oldDimGroup.remove();
+
+        const cadGroup = createEl('g', { id: 'cad-dimensions-detailed', style: 'pointer-events: none;' });
+
+        // Outer Tier (Level 2): Full Roof Dimensions
+        addHorizDim(cadGroup, 0, this.roof.width, -1.45, `${Number(this.roof.width).toFixed(2)} m`, true, 0);
+        addVertDim(cadGroup, 0, this.roof.length, -1.45, `${Number(this.roof.length).toFixed(2)} m`, true, 0);
+
+        // Inner Tier (Level 1): Setbacks & PV Array footprint
+        if (this.modules.length > 0) {
+          let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+          for (const m of this.modules) {
+            const isRot = m.rotation === 90 || m.rotation === 270;
+            const mw = isRot ? (this.module.height / 1000) : (this.module.width / 1000);
+            const mh = isRot ? (this.module.width / 1000) : (this.module.height / 1000);
+            if (m.x < minX) minX = m.x;
+            if (m.x + mw > maxX) maxX = m.x + mw;
+            if (m.y < minY) minY = m.y;
+            if (m.y + mh > maxY) maxY = m.y + mh;
+          }
+          const arrayW = maxX - minX;
+          const arrayH = maxY - minY;
+          const setbackW = minX;
+          const setbackE = Math.max(0, this.roof.width - maxX);
+          const setbackN = minY;
+          const setbackS = Math.max(0, this.roof.length - maxY);
+
+          // Horizontal chain at y = -0.60
+          if (showSetbacks && setbackW > 0.04) {
+            addHorizDim(cadGroup, 0, minX, -0.60, `${setbackW.toFixed(2)} m`, false, 0);
+          }
+          if (showArrayBounds && arrayW > 0.05) {
+            addHorizDim(cadGroup, minX, maxX, -0.60, `Array: ${arrayW.toFixed(2)} m`, false, minY);
+            // Array bounding dashed frame
+            cadGroup.appendChild(createEl('rect', {
+              x: minX.toFixed(3), y: minY.toFixed(3),
+              width: arrayW.toFixed(3), height: arrayH.toFixed(3),
+              fill: 'none', stroke: '#38BDF8',
+              'stroke-width': '0.016', 'stroke-dasharray': '0.08 0.04',
+              rx: '0.02', opacity: '0.85'
+            }));
+          }
+          if (showSetbacks && setbackE > 0.04) {
+            addHorizDim(cadGroup, maxX, this.roof.width, -0.60, `${setbackE.toFixed(2)} m`, false, 0);
+          }
+
+          // Vertical chain at x = -0.60
+          if (showSetbacks && setbackN > 0.04) {
+            addVertDim(cadGroup, 0, minY, -0.60, `${setbackN.toFixed(2)} m`, false, 0);
+          }
+          if (showArrayBounds && arrayH > 0.05) {
+            addVertDim(cadGroup, minY, maxY, -0.60, `Array: ${arrayH.toFixed(2)} m`, false, minX);
+          }
+          if (showSetbacks && setbackS > 0.04) {
+            addVertDim(cadGroup, maxY, this.roof.length, -0.60, `${setbackS.toFixed(2)} m`, false, 0);
+          }
+
+          // Module dimensions & clamp gap callout on sample module
+          if (showModulePitch) {
+            const sorted = [...this.modules].sort((a, b) => a.y === b.y ? a.x - b.x : a.y - b.y);
+            const m0 = sorted[0];
+            const isRot = m0.rotation === 90 || m0.rotation === 270;
+            const mw = isRot ? (this.module.height / 1000) : (this.module.width / 1000);
+            const mh = isRot ? (this.module.width / 1000) : (this.module.height / 1000);
+
+            // Highlight border on sample module
+            cadGroup.appendChild(createEl('rect', {
+              x: m0.x.toFixed(3), y: m0.y.toFixed(3),
+              width: mw.toFixed(3), height: mh.toFixed(3),
+              fill: 'none', stroke: '#F59E0B',
+              'stroke-width': '0.024', 'stroke-dasharray': '0.04 0.02',
+              rx: '0.015'
+            }));
+
+            // Callout badge with leader line
+            const calloutX = m0.x + mw / 2;
+            const calloutY = Math.max(-0.25, m0.y - 0.22);
+            cadGroup.appendChild(createEl('line', {
+              x1: calloutX, y1: m0.y, x2: calloutX, y2: calloutY + 0.1,
+              stroke: '#F59E0B', 'stroke-width': '0.012', 'stroke-dasharray': '0.03 0.02'
+            }));
+            const badgeW = 2.4;
+            const badgeH = 0.24;
+            cadGroup.appendChild(createEl('rect', {
+              x: calloutX - badgeW / 2, y: calloutY - badgeH / 2,
+              width: badgeW, height: badgeH, rx: 0.05,
+              class: 'cad-callout-pill'
+            }));
+            const cText = createEl('text', {
+              x: calloutX, y: calloutY,
+              class: 'cad-callout-text'
+            });
+            cText.textContent = `${mw.toFixed(3)}m × ${mh.toFixed(3)}m · Gap: ${this.module.gapX}mm`;
+            cadGroup.appendChild(cText);
+          }
+        }
+
+        // Walkway clearances & positions
+        if (showWalkways && allWalkways.length > 0) {
+          allWalkways.forEach((w, idx) => {
+            const isVert = w.direction === 'vertical' || (w.height > w.width && w.direction !== 'horizontal');
+            if (isVert) {
+              const dimY = this.roof.length + 0.35 + (idx * 0.42);
+              addHorizDim(cadGroup, w.x, w.x + w.width, dimY, `Walkway: ${w.width.toFixed(2)}m (Offset: ${w.x.toFixed(2)}m)`, false, this.roof.length);
+            } else {
+              const dimX = this.roof.width + 0.35 + (idx * 0.42);
+              addVertDim(cadGroup, w.y, w.y + w.height, dimX, `Walkway: ${w.height.toFixed(2)}m (Offset: ${w.y.toFixed(2)}m)`, false, this.roof.width);
+            }
+          });
+        }
+
+        // Architectural CAD Title Block
+        if (showTitleBlock) {
+          const isDe = this.lang === 'de';
+          const hasVertWalkway = allWalkways.some(w => w.direction === 'vertical' || (w.height > w.width && w.direction !== 'horizontal'));
+          const tbW = Math.max(5.8, Math.min(9.2, this.roof.width));
+          const tbX = Math.max(0, this.roof.width - tbW);
+          const tbY = this.roof.length + (hasVertWalkway ? (allWalkways.length * 0.42 + 0.5) : 0.6);
+          const tbH = 1.55;
+
+          const tbGroup = createEl('g', { id: 'cad-title-block' });
+          // Background box
+          tbGroup.appendChild(createEl('rect', {
+            x: tbX, y: tbY, width: tbW, height: tbH, rx: 0.06,
+            class: 'cad-tb-bg'
+          }));
+          // Top header band
+          tbGroup.appendChild(createEl('rect', {
+            x: tbX, y: tbY, width: tbW, height: 0.38, rx: 0.06,
+            class: 'cad-tb-header'
+          }));
+          // Blue accent strip
+          tbGroup.appendChild(createEl('rect', {
+            x: tbX, y: tbY, width: 0.08, height: tbH, rx: 0.03,
+            class: 'cad-tb-accent'
+          }));
+
+          // Header Title & Subtitle
+          const titleEl = createEl('text', {
+            x: tbX + 0.22, y: tbY + 0.16,
+            class: 'cad-tb-title'
+          });
+          titleEl.textContent = isDe ? 'SOLARROOFFIT CAD-BAUPLAN' : 'SOLARROOFFIT CAD BLUEPRINT';
+          tbGroup.appendChild(titleEl);
+
+          const subEl = createEl('text', {
+            x: tbX + 0.22, y: tbY + 0.30,
+            class: 'cad-tb-subtitle'
+          });
+          subEl.textContent = isDe ? 'Photovoltaik-Flachdachbelegung · Maßstab 1:1 Metrisch' : 'Photovoltaic Flat Roof Layout · Scale 1:1 Metric';
+          tbGroup.appendChild(subEl);
+
+          // Column 1: Roof Specs
+          const col1X = tbX + 0.22;
+          const lblRoof = createEl('text', { x: col1X, y: tbY + 0.54, class: 'cad-tb-label' });
+          lblRoof.textContent = isDe ? 'Dachabmessungen' : 'Roof Dimensions';
+          tbGroup.appendChild(lblRoof);
+          const valRoof = createEl('text', { x: col1X, y: tbY + 0.70, class: 'cad-tb-val' });
+          valRoof.textContent = `${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m (${this.roofArea} m²)`;
+          tbGroup.appendChild(valRoof);
+
+          const lblUsable = createEl('text', { x: col1X, y: tbY + 0.90, class: 'cad-tb-label' });
+          lblUsable.textContent = isDe ? 'Nutzbare Fläche' : 'Net Usable Area';
+          tbGroup.appendChild(lblUsable);
+          const valUsable = createEl('text', { x: col1X, y: tbY + 1.06, class: 'cad-tb-val' });
+          valUsable.textContent = `${this.usableArea} m² (Setback: ${this.roof.setback}m)`;
+          tbGroup.appendChild(valUsable);
+
+          // Column 2: PV Array Specs
+          const col2X = tbX + tbW * 0.36;
+          const lblMods = createEl('text', { x: col2X, y: tbY + 0.54, class: 'cad-tb-label' });
+          lblMods.textContent = isDe ? 'PV-Module & Leistung' : 'PV Modules & Power';
+          tbGroup.appendChild(lblMods);
+          const valMods = createEl('text', { x: col2X, y: tbY + 0.70, class: 'cad-tb-val' });
+          valMods.textContent = `${this.modules.length} ${isDe ? 'Stk.' : 'pcs'} · ${this.totalPowerKW} kWp`;
+          tbGroup.appendChild(valMods);
+
+          const lblCov = createEl('text', { x: col2X, y: tbY + 0.90, class: 'cad-tb-label' });
+          lblCov.textContent = isDe ? 'Dachbelegung' : 'Roof Coverage';
+          tbGroup.appendChild(lblCov);
+          const valCov = createEl('text', { x: col2X, y: tbY + 1.06, class: 'cad-tb-val' });
+          valCov.textContent = `${this.coveragePercent}% (${this.pvTotalArea} m²)`;
+          tbGroup.appendChild(valCov);
+
+          // Column 3: Module & Gap Specs
+          const col3X = tbX + tbW * 0.70;
+          const lblType = createEl('text', { x: col3X, y: tbY + 0.54, class: 'cad-tb-label' });
+          lblType.textContent = isDe ? 'Modultyp / Nennwert' : 'Module Model / Peak';
+          tbGroup.appendChild(lblType);
+          const valType = createEl('text', { x: col3X, y: tbY + 0.70, class: 'cad-tb-val' });
+          valType.textContent = `${this.module.width}×${this.module.height}mm (${this.module.power}Wp)`;
+          tbGroup.appendChild(valType);
+
+          const lblGap = createEl('text', { x: col3X, y: tbY + 0.90, class: 'cad-tb-label' });
+          lblGap.textContent = isDe ? 'Klemmenabstand X/Y' : 'Clamp Gap X / Y';
+          tbGroup.appendChild(lblGap);
+          const valGap = createEl('text', { x: col3X, y: tbY + 1.06, class: 'cad-tb-val' });
+          valGap.textContent = `${this.module.gapX} mm / ${this.module.gapY} mm`;
+          tbGroup.appendChild(valGap);
+
+          // Bottom metadata line
+          tbGroup.appendChild(createEl('line', {
+            x1: tbX + 0.1, y1: tbY + 1.20, x2: tbX + tbW - 0.1, y2: tbY + 1.20,
+            stroke: 'rgba(56, 189, 248, 0.25)', 'stroke-width': '0.01'
+          }));
+          const footEl = createEl('text', {
+            x: tbX + 0.22, y: tbY + 1.36,
+            class: 'cad-tb-label'
+          });
+          footEl.textContent = `${new Date().toLocaleDateString()} · Units: Metric (m / mm) · SolarRoofFit Simulator`;
+          tbGroup.appendChild(footEl);
+
+          cadGroup.appendChild(tbGroup);
+        }
+
+        clone.appendChild(cadGroup);
+      }
+
+      // 6. ViewBox and Canvas Bounds
+      let vbX, vbY, vbW, vbH;
+      if (isDetailed) {
+        const hasVertWalkway = allWalkways.some(w => w.direction === 'vertical' || (w.height > w.width && w.direction !== 'horizontal'));
+        const hasHorizWalkway = allWalkways.some(w => w.direction === 'horizontal' || (w.width >= w.height && w.direction !== 'vertical'));
+        const maxWalkwaysBottom = (showWalkways && hasVertWalkway) ? (allWalkways.length * 0.42) : 0;
+        const maxWalkwaysRight = (showWalkways && hasHorizWalkway) ? (allWalkways.length * 0.42) : 0;
+        const titleBlockSpace = showTitleBlock ? 2.4 : 0.8;
+
+        const marginLeft = Math.max(2.4, this.roof.width * 0.16);
+        const marginTop = Math.max(2.3, this.roof.length * 0.16);
+        const marginRight = Math.max(2.2, this.roof.width * 0.14) + maxWalkwaysRight;
+        const marginBottom = Math.max(2.0, this.roof.length * 0.15) + maxWalkwaysBottom + titleBlockSpace;
+
+        vbX = -marginLeft;
+        vbY = -marginTop;
+        vbW = this.roof.width + marginLeft + marginRight;
+        vbH = this.roof.length + marginTop + marginBottom;
+      } else {
+        const marginX = Math.max(1.2, this.roof.width * 0.12);
+        const marginY = Math.max(1.2, this.roof.length * 0.12);
+        vbX = -marginX;
+        vbY = -marginY;
+        vbW = this.roof.width + (2 * marginX);
+        vbH = this.roof.length + (2 * marginY);
+      }
 
       clone.setAttribute('viewBox', `${vbX.toFixed(3)} ${vbY.toFixed(3)} ${vbW.toFixed(3)} ${vbH.toFixed(3)}`);
-      clone.setAttribute('width', Math.round(vbW * 120).toString());
-      clone.setAttribute('height', Math.round(vbH * 120).toString());
+      clone.setAttribute('width', Math.round(vbW * 110).toString());
+      clone.setAttribute('height', Math.round(vbH * 110).toString());
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
 
-      // 6. Solid background
+      // 7. Solid background
       let bgRect = clone.querySelector('#canvas-bg');
       if (!bgRect) {
         bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -1081,7 +1495,7 @@ document.addEventListener('alpine:init', () => {
       bgRect.setAttribute('height', vbH.toFixed(3));
       bgRect.setAttribute('fill', '#070B14');
 
-      // 7. Embed CSS styles
+      // 8. Embed CSS styles
       let defs = clone.querySelector('defs');
       if (!defs) {
         defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
@@ -1105,6 +1519,24 @@ document.addEventListener('alpine:init', () => {
         .pv-module-group.selected .pv-module-frame { stroke: #06B6D4 !important; stroke-width: 0.045 !important; }
         .pv-module-group.warning .pv-module-frame { stroke: #F59E0B !important; stroke-width: 0.045 !important; }
         .pv-module-group.collision .pv-module-frame, .pv-module-group.error_roof .pv-module-frame { stroke: #EF4444 !important; stroke-width: 0.05 !important; }
+        .cad-dim-line { stroke: #38BDF8; stroke-width: 0.02; fill: none; }
+        .cad-dim-tick { stroke: #38BDF8; stroke-width: 0.025; stroke-linecap: square; }
+        .cad-witness-line { stroke: rgba(56, 189, 248, 0.4); stroke-width: 0.012; stroke-dasharray: 0.06 0.04; fill: none; }
+        .cad-dim-badge-bg { fill: #0B1120; stroke: #38BDF8; stroke-width: 0.014; }
+        .cad-dim-text { fill: #38BDF8; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.18px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+        .cad-roof-dim-line { stroke: #94A3B8; stroke-width: 0.022; fill: none; }
+        .cad-roof-dim-tick { stroke: #94A3B8; stroke-width: 0.028; stroke-linecap: square; }
+        .cad-roof-dim-badge-bg { fill: #0F172A; stroke: #64748B; stroke-width: 0.016; }
+        .cad-roof-dim-text { fill: #F8FAFC; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.22px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+        .cad-callout-pill { fill: #0F172A; stroke: #F59E0B; stroke-width: 0.015; }
+        .cad-callout-text { fill: #FBBF24; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.14px; font-weight: 700; text-anchor: middle; dominant-baseline: central; }
+        .cad-tb-bg { fill: #090E17; stroke: #38BDF8; stroke-width: 0.02; }
+        .cad-tb-header { fill: #131E32; }
+        .cad-tb-title { fill: #FFFFFF; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.20px; font-weight: 800; }
+        .cad-tb-subtitle { fill: #38BDF8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.12px; font-weight: 600; }
+        .cad-tb-label { fill: #64748B; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 0.11px; font-weight: 600; text-transform: uppercase; }
+        .cad-tb-val { fill: #F1F5F9; font-family: "JetBrains Mono", Consolas, monospace; font-size: 0.13px; font-weight: 600; }
+        .cad-tb-accent { fill: #38BDF8; }
       `;
       defs.appendChild(styleEl);
 
@@ -1119,27 +1551,56 @@ document.addEventListener('alpine:init', () => {
     },
 
     // --- Exports (SVG / PNG / BOM) ---
-    exportSVG() {
+    exportSVG(options = {}) {
       try {
-        const source = this.getExportableSVGString();
+        const isDetailed = options.detailed !== undefined
+          ? options.detailed
+          : (this.exportModal?.mode === 'detailed');
+
+        const fullOptions = {
+          detailed: isDetailed,
+          mode: isDetailed ? 'detailed' : 'standard',
+          showSetbacks: options.showSetbacks !== undefined ? options.showSetbacks : (this.exportModal?.showSetbacks ?? true),
+          showArrayBounds: options.showArrayBounds !== undefined ? options.showArrayBounds : (this.exportModal?.showArrayBounds ?? true),
+          showWalkways: options.showWalkways !== undefined ? options.showWalkways : (this.exportModal?.showWalkways ?? true),
+          showModulePitch: options.showModulePitch !== undefined ? options.showModulePitch : (this.exportModal?.showModulePitch ?? true),
+          showTitleBlock: options.showTitleBlock !== undefined ? options.showTitleBlock : (this.exportModal?.showTitleBlock ?? true)
+        };
+
+        const source = this.getExportableSVGString(fullOptions);
         if (!source) {
           this.showToast('SVG canvas not found', 'error');
           return;
         }
 
         const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
-        const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.svg`;
+        const prefix = fullOptions.detailed ? 'solarrooffit_blueprint_' : 'solarrooffit_';
+        const filename = `${prefix}${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.svg`;
         downloadBlob(blob, filename);
-        this.showToast('Exported SVG layout blueprint');
+        this.showToast(fullOptions.detailed ? this.t('toastExportDetailed') : this.t('toastExportSVG'));
       } catch (err) {
         console.error('Failed to export SVG:', err);
         this.showToast('SVG export error: ' + err.message, 'error');
       }
     },
 
-    exportPNG() {
+    exportPNG(options = {}) {
       try {
-        const source = this.getExportableSVGString();
+        const isDetailed = options.detailed !== undefined
+          ? options.detailed
+          : (this.exportModal?.mode === 'detailed');
+
+        const fullOptions = {
+          detailed: isDetailed,
+          mode: isDetailed ? 'detailed' : 'standard',
+          showSetbacks: options.showSetbacks !== undefined ? options.showSetbacks : (this.exportModal?.showSetbacks ?? true),
+          showArrayBounds: options.showArrayBounds !== undefined ? options.showArrayBounds : (this.exportModal?.showArrayBounds ?? true),
+          showWalkways: options.showWalkways !== undefined ? options.showWalkways : (this.exportModal?.showWalkways ?? true),
+          showModulePitch: options.showModulePitch !== undefined ? options.showModulePitch : (this.exportModal?.showModulePitch ?? true),
+          showTitleBlock: options.showTitleBlock !== undefined ? options.showTitleBlock : (this.exportModal?.showTitleBlock ?? true)
+        };
+
+        const source = this.getExportableSVGString(fullOptions);
         if (!source) {
           this.showToast('SVG canvas not found', 'error');
           return;
@@ -1152,34 +1613,48 @@ document.addEventListener('alpine:init', () => {
         img.onload = () => {
           try {
             const canvas = document.createElement('canvas');
-            const aspect = (this.roof.length + 2.5) / (this.roof.width + 2.5);
-            canvas.width = 2400;
-            canvas.height = Math.max(1200, Math.round(2400 * aspect));
+            const vbMatch = source.match(/viewBox="([^"]+)"/);
+            let vbW = this.roof.width + 4;
+            let vbH = this.roof.length + 4;
+            if (vbMatch && vbMatch[1]) {
+              const parts = vbMatch[1].trim().split(/\s+/).map(Number);
+              if (parts.length === 4 && parts[2] > 0 && parts[3] > 0) {
+                vbW = parts[2];
+                vbH = parts[3];
+              }
+            }
+
+            const aspect = vbH / vbW;
+            canvas.width = 3200; // Ultra high-resolution 4K render
+            canvas.height = Math.max(1600, Math.round(3200 * aspect));
 
             const ctx = canvas.getContext('2d');
             // Clean architectural daylight background
-            ctx.fillStyle = '#EEF2F6';
+            ctx.fillStyle = '#070B14';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Draw SVG blueprint
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-            // Architectural Studio Header Info Card
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.94)';
-            ctx.fillRect(35, 35, 860, 95);
-            ctx.strokeStyle = 'rgba(37, 99, 235, 0.3)';
-            ctx.lineWidth = 2;
-            ctx.strokeRect(35, 35, 860, 95);
+            // Studio Header Card only if no Title Block in SVG
+            if (!fullOptions.detailed || !fullOptions.showTitleBlock) {
+              ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+              ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+              ctx.lineWidth = 2;
+              ctx.fillRect(35, 35, 860, 95);
+              ctx.strokeRect(35, 35, 860, 95);
 
-            ctx.fillStyle = '#0F172A';
-            ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
-            ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
+              ctx.fillStyle = '#F8FAFC';
+              ctx.font = 'bold 28px Inter, -apple-system, sans-serif';
+              ctx.fillText(`SolarRoofFit CAD: ${this.roof.width.toFixed(2)}m × ${this.roof.length.toFixed(2)}m ${this.t('exportFlatRoof')}`, 55, 75);
 
-            ctx.font = '18px Inter, -apple-system, sans-serif';
-            ctx.fillStyle = '#475569';
-            ctx.fillText(`${this.modules.length} PV ${this.t('metricModules')} | ${this.totalPowerKW} kWp | ${this.t('metricCoverage')}: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
+              ctx.font = '18px Inter, -apple-system, sans-serif';
+              ctx.fillStyle = '#94A3B8';
+              ctx.fillText(`${this.modules.length} PV ${this.t('metricModules')} | ${this.totalPowerKW} kWp | ${this.t('metricCoverage')}: ${this.coveragePercent}% (${this.pvTotalArea} m²)`, 55, 108);
+            }
 
-            const filename = `solarrooffit_${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;
+            const prefix = fullOptions.detailed ? 'solarrooffit_blueprint_' : 'solarrooffit_';
+            const filename = `${prefix}${this.roof.width}x${this.roof.length}m_${this.modules.length}mods.png`;
 
             if (canvas.toBlob) {
               canvas.toBlob((blob) => {
@@ -1194,7 +1669,7 @@ document.addEventListener('alpine:init', () => {
                   link.click();
                   setTimeout(() => document.body.removeChild(link), 1000);
                 }
-                this.showToast(this.t('toastExportPNG'));
+                this.showToast(fullOptions.detailed ? this.t('toastExportDetailed') : this.t('toastExportPNG'));
               }, 'image/png');
             } else {
               const fallbackData = canvas.toDataURL('image/png');
@@ -1204,7 +1679,7 @@ document.addEventListener('alpine:init', () => {
               document.body.appendChild(link);
               link.click();
               setTimeout(() => document.body.removeChild(link), 1000);
-              this.showToast(this.t('toastExportPNG'));
+              this.showToast(fullOptions.detailed ? this.t('toastExportDetailed') : this.t('toastExportPNG'));
             }
           } catch (canvasErr) {
             console.error('Canvas draw error:', canvasErr);
