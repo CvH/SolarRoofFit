@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="css/styles.css?v=34">
 
   <!-- Application Modules & Alpine.js -->
-  <script type="module" src="js/app.js?v=34"></script>
+  <script type="module" src="js/app.js?v=35"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js"></script>
 </head>
 <body x-data="roofPlannerApp">
@@ -98,6 +98,21 @@
           <button type="button" class="lang-btn" :class="lang === 'en' ? 'active' : ''" @click="setLanguage('en')" title="English">EN</button>
           <button type="button" class="lang-btn" :class="lang === 'de' ? 'active' : ''" @click="setLanguage('de')" title="Deutsch">DE</button>
         </div>
+
+        <!-- Project Open / Save Actions -->
+        <div class="btn-group">
+          <button id="btn-open-project" type="button" class="btn btn-outline" @click="openProjectDialog()" :title="t('btnOpenProjectTitle')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+            <span x-text="t('btnOpenProject')">Open</span>
+          </button>
+          <button id="btn-save-project" type="button" class="btn btn-outline" @click="saveProjectJSON()" :title="t('btnSaveProjectTitle')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            <span x-text="t('btnSaveProject')">Save</span>
+          </button>
+        </div>
+
+        <!-- Hidden File Input for Project Loading -->
+        <input id="input-import-project" type="file" accept=".json,application/json" style="display: none;" @change="handleProjectFileInput($event)">
 
         <div class="btn-group">
           <button id="btn-export-svg" type="button" class="btn btn-outline" @click="openExportModal('svg')" :title="t('exportSVGTitle')">
@@ -599,7 +614,25 @@
       </aside>
 
       <!-- Center Viewport & Interactive SVG Canvas -->
-      <main class="canvas-viewport" id="canvas-container">
+      <main class="canvas-viewport" 
+            id="canvas-container"
+            @dragover.prevent="handleDragOver($event)"
+            @dragenter.prevent="handleDragEnter($event)"
+            @dragleave.prevent="handleDragLeave($event)"
+            @drop.prevent="handleFileDrop($event)">
+
+        <!-- Drag & Drop JSON Import Overlay -->
+        <div class="drop-zone-overlay" x-show="isDraggingFile" x-transition.opacity style="display: none;">
+          <div class="drop-zone-card">
+            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            <h3 x-text="t('dropProjectOverlay')">Drop .json project file here to load</h3>
+            <p>.json (SolarRoofFit project format)</p>
+          </div>
+        </div>
 
         <!-- Floating Canvas Command Toolbar (CAD / Figma Style) -->
         <div class="canvas-toolbar-floating">

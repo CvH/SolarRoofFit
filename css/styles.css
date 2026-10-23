@@ -1738,3 +1738,53 @@ input:checked + .slider-round:before {
   line-height: 1.35;
 }
 
+/* ====================================================================
+   Drag & Drop Project JSON File Overlay
+   ==================================================================== */
+.drop-zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.drop-zone-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2.25rem 3.5rem;
+  background: #FFFFFF;
+  border: 2px dashed var(--brand-blue);
+  border-radius: 16px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25);
+  color: var(--brand-blue);
+  text-align: center;
+  pointer-events: none;
+  animation: dropCardPulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes dropCardPulse {
+  0% { transform: scale(0.98); }
+  100% { transform: scale(1.02); }
+}
+
+.drop-zone-card h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.drop-zone-card p {
+  font-size: 0.8rem;
+  color: var(--text-subtle);
+  margin: 0;
+}
+
+

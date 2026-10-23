@@ -16,7 +16,7 @@ import {
   calculateObstacleSnap
 } from './layout.js?v=26';
 import { SvgCanvasManager } from './canvas.js?v=31';
-import { translate } from './i18n.js?v=34';
+import { translate } from './i18n.js?v=35';
 
 /**
  * Safely triggers a file download from a Blob across modern browsers
@@ -126,6 +126,8 @@ document.addEventListener('alpine:init', () => {
     autoFillMode: 'mixed', // 'mixed' | 'same' | 'portrait' | 'landscape'
     autoBestStrategy: 'mixed', // 'mixed' | 'same'
     autoDropdownOpen: false,
+    isDraggingFile: false,
+    dragCounter: 0,
 
     t(key, params = {}) {
       return translate(this.lang, key, params);
@@ -280,6 +282,18 @@ document.addEventListener('alpine:init', () => {
 
       // Register keyboard shortcuts
       this.initKeyboardShortcuts();
+
+      // Prevent browser default file opening when dragging outside canvas
+      window.addEventListener('dragover', (e) => {
+        if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+          e.preventDefault();
+        }
+      });
+      window.addEventListener('drop', (e) => {
+        if (!e.target.closest('#canvas-container')) {
+          e.preventDefault();
+        }
+      });
 
       // Auto-save debounce watcher
       this.$watch('modules', () => {
@@ -1301,6 +1315,174 @@ document.addEventListener('alpine:init', () => {
       try {
         localStorage.setItem('pv_roof_planner_state', JSON.stringify(data));
       } catch (_) {}
+    },
+
+    // --- Project JSON Export & Import ---
+    saveProjectJSON() {
+      const projectData = {
+        format: 'solarrooffit-project',
+        version: '1.0',
+        generator: 'SolarRoofFit',
+        exportedAt: new Date().toISOString(),
+        roof: JSON.parse(JSON.stringify(this.roof)),
+        module: JSON.parse(JSON.stringify(this.module)),
+        grid: JSON.parse(JSON.stringify(this.grid)),
+        walkway: JSON.parse(JSON.stringify(this.walkway)),
+        obstacles: JSON.parse(JSON.stringify(this.obstacles || [])),
+        modules: JSON.parse(JSON.stringify(this.modules || [])),
+        autoBestStrategy: this.autoBestStrategy,
+        autoFillMode: this.autoFillMode,
+        metrics: {
+          modulesCount: this.modules ? this.modules.length : 0,
+          totalPowerKW: this.totalPowerKW,
+          coveragePercent: this.coveragePercent,
+          pvTotalArea: this.pvTotalArea,
+          powerDensity: this.powerDensity
+        }
+      };
+
+      const jsonStr = JSON.stringify(projectData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const filename = `solarrooffit-project-${this.roof.width}x${this.roof.length}m-${new Date().toISOString().slice(0, 10)}.json`;
+      downloadBlob(blob, filename);
+      this.showToast(this.t('toastProjectSaved'));
+    },
+
+    openProjectDialog() {
+      const input = document.getElementById('input-import-project');
+      if (input) {
+        input.value = '';
+        input.click();
+      }
+    },
+
+    handleProjectFileInput(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      this.readProjectFile(file);
+      event.target.value = '';
+    },
+
+    handleDragOver(event) {
+      if (event.dataTransfer && event.dataTransfer.types && Array.from(event.dataTransfer.types).includes('Files')) {
+        event.dataTransfer.dropEffect = 'copy';
+        this.isDraggingFile = true;
+      }
+    },
+
+    handleDragEnter(event) {
+      if (event.dataTransfer && event.dataTransfer.types && Array.from(event.dataTransfer.types).includes('Files')) {
+        this.dragCounter++;
+        this.isDraggingFile = true;
+      }
+    },
+
+    handleDragLeave(event) {
+      this.dragCounter--;
+      if (this.dragCounter <= 0) {
+        this.dragCounter = 0;
+        this.isDraggingFile = false;
+      }
+    },
+
+    handleFileDrop(event) {
+      this.dragCounter = 0;
+      this.isDraggingFile = false;
+      const files = event.dataTransfer ? event.dataTransfer.files : null;
+      if (!files || files.length === 0) return;
+      const file = files[0];
+      if (!file.name.toLowerCase().endsWith('.json') && file.type !== 'application/json') {
+        this.showToast(this.t('toastProjectInvalid'), 'error');
+        return;
+      }
+      this.readProjectFile(file);
+    },
+
+    readProjectFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const content = e.target.result;
+          const parsed = JSON.parse(content);
+          this.loadProjectData(parsed, file.name);
+        } catch (err) {
+          console.error('Failed to parse project JSON:', err);
+          this.showToast(this.t('toastProjectInvalid'), 'error');
+        }
+      };
+      reader.onerror = () => {
+        this.showToast(this.t('toastProjectInvalid'), 'error');
+      };
+      reader.readAsText(file);
+    },
+
+    loadProjectData(parsed, fileName = '') {
+      if (!parsed || typeof parsed !== 'object') {
+        this.showToast(this.t('toastProjectInvalid'), 'error');
+        return false;
+      }
+
+      // Check if project has valid structure
+      if (!parsed.roof && !parsed.modules && parsed.format !== 'solarrooffit-project') {
+        this.showToast(this.t('toastProjectInvalid'), 'error');
+        return false;
+      }
+
+      const hasExistingContent = (this.modules && this.modules.length > 0) || (this.obstacles && this.obstacles.length > 0);
+      if (hasExistingContent) {
+        const confirmMsg = this.t('confirmLoadProject', { name: fileName || 'project.json' });
+        if (!window.confirm(confirmMsg)) {
+          return false;
+        }
+      }
+
+      if (parsed.roof && typeof parsed.roof === 'object') {
+        this.roof = { ...this.roof, ...parsed.roof };
+      }
+      if (parsed.module && typeof parsed.module === 'object') {
+        this.module = { ...this.module, ...parsed.module };
+      }
+      if (parsed.grid && typeof parsed.grid === 'object') {
+        this.grid = { ...this.grid, ...parsed.grid };
+      }
+      if (parsed.walkway && typeof parsed.walkway === 'object') {
+        this.walkway = { ...this.walkway, ...parsed.walkway };
+      }
+      if (Array.isArray(parsed.obstacles)) {
+        this.obstacles = JSON.parse(JSON.stringify(parsed.obstacles));
+      }
+      if (Array.isArray(parsed.modules)) {
+        this.modules = JSON.parse(JSON.stringify(parsed.modules));
+      }
+      if (parsed.autoBestStrategy) {
+        this.autoBestStrategy = parsed.autoBestStrategy;
+      }
+      if (parsed.autoFillMode) {
+        this.autoFillMode = parsed.autoFillMode;
+      }
+
+      // Clear selections
+      this.selectedIds = [];
+      this.selectedWalkwayId = null;
+      this.selectedObstacleId = null;
+
+      // Persist state and sync canvas
+      this.persistState();
+      this.refreshValidation();
+      this.saveHistory(this.t('historyImportProject'));
+
+      this.$nextTick(() => {
+        if (this.canvasManager) {
+          this.canvasManager.fitToRoof(this.roof.width, this.roof.length);
+          this.renderCanvasModules();
+          this.renderWalkways();
+          this.renderObstacles();
+        }
+      });
+
+      this.showToast(this.t('toastProjectLoaded', { name: fileName || 'project.json' }));
+      return true;
     },
 
     // --- Standalone SVG Blueprint Generator ---

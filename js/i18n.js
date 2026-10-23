@@ -22,6 +22,18 @@ export const TRANSLATIONS = {
     statusWarnings: "Warnings",
     statusOptimalTitle: "All modules within safe setback without collisions",
 
+    // Project Save / Open
+    btnOpenProject: "Open",
+    btnOpenProjectTitle: "Open project from .json file (or drop file onto roof)",
+    btnSaveProject: "Save",
+    btnSaveProjectTitle: "Save project as .json file",
+    confirmLoadProject: "Load project \"{name}\"? Your current roof layout will be replaced.",
+    toastProjectSaved: "Project saved as JSON",
+    toastProjectLoaded: "Loaded project \"{name}\"",
+    toastProjectInvalid: "Invalid project JSON file",
+    dropProjectOverlay: "Drop .json project file here to load",
+    historyImportProject: "Load project from file",
+
     // Header Exports
     exportSVG: "SVG",
     exportSVGTitle: "Export Vector SVG Blueprint with Precise Dimensions",
@@ -254,6 +266,18 @@ export const TRANSLATIONS = {
     statusWarning: "Warnung",
     statusWarnings: "Warnungen",
     statusOptimalTitle: "Alle Module innerhalb des Sicherheitsbereichs ohne Kollisionen",
+
+    // Project Save / Open
+    btnOpenProject: "Öffnen",
+    btnOpenProjectTitle: "Projekt aus .json laden (oder Datei auf Dach ziehen)",
+    btnSaveProject: "Speichern",
+    btnSaveProjectTitle: "Projekt als .json speichern",
+    confirmLoadProject: "Projekt \"{name}\" laden? Das aktuelle Layout wird ersetzt.",
+    toastProjectSaved: "Projekt als JSON gespeichert",
+    toastProjectLoaded: "Projekt \"{name}\" geladen",
+    toastProjectInvalid: "Ungültiges Projektdateiformat",
+    dropProjectOverlay: ".json-Projektdatei hier ablegen",
+    historyImportProject: "Projekt geladen",
 
     // Header Exports
     exportSVG: "SVG",
